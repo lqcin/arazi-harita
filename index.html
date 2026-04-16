@@ -6,525 +6,428 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Arazi Harita">
-<meta name="theme-color" content="#1a1a2e">
+<meta name="theme-color" content="#0f0f1a">
 <title>Arazi Harita</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  :root {
-    --bg: #0f0f1a;
-    --surface: #1a1a2e;
-    --surface2: #16213e;
-    --accent: #4a9eff;
-    --accent2: #00d4aa;
-    --danger: #ff6b6b;
-    --text: #e8eaf0;
-    --text2: #8892a4;
-    --border: rgba(255,255,255,0.08);
-    --radius: 12px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; color: var(--text); }
-
-  #map { position: absolute; inset: 0; z-index: 1; }
-
-  /* Top bar */
-  #topbar {
-    position: absolute; top: 0; left: 0; right: 0; z-index: 100;
-    background: linear-gradient(to bottom, rgba(15,15,26,0.95) 70%, transparent);
-    padding: 12px 12px 20px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  #upload-btn {
-    display: flex; align-items: center; gap: 6px;
-    background: var(--accent); color: #fff;
-    border: none; border-radius: 20px;
-    padding: 8px 16px; font-size: 14px; font-weight: 600;
-    cursor: pointer; flex-shrink: 0;
-  }
-  #file-input { display: none; }
-  #file-label {
-    flex: 1; font-size: 12px; color: var(--text2);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  #coord-display {
-    background: rgba(15,15,26,0.85);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 4px 10px;
-    font-size: 11px; color: var(--text2);
-    font-family: 'SF Mono', monospace;
-    white-space: nowrap;
-  }
-
-  /* Bottom toolbar */
-  #toolbar {
-    position: absolute; bottom: 0; left: 0; right: 0; z-index: 100;
-    background: linear-gradient(to top, rgba(15,15,26,0.97) 60%, transparent);
-    padding: 20px 12px 24px;
-    display: flex; gap: 8px; align-items: flex-end;
-  }
-  .tool-btn {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 10px 14px;
-    font-size: 11px; color: var(--text2); cursor: pointer;
-    flex: 1; min-width: 0;
-    transition: background 0.15s, border-color 0.15s;
-  }
-  .tool-btn .icon { font-size: 20px; }
-  .tool-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .tool-btn.gps-active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
-
-  /* Layer panel */
-  #layer-panel {
-    position: absolute; left: 12px; right: 12px; bottom: 90px; z-index: 200;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px;
-    display: none;
-    max-height: 280px; overflow-y: auto;
-  }
-  #layer-panel h3 { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
-  .layer-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-  }
-  .layer-item:last-child { border-bottom: none; }
-  .layer-toggle {
-    width: 36px; height: 20px; border-radius: 10px;
-    background: var(--accent); flex-shrink: 0;
-    position: relative; transition: background 0.2s;
-  }
-  .layer-toggle.off { background: var(--border); }
-  .layer-toggle::after {
-    content: ''; position: absolute;
-    width: 16px; height: 16px; border-radius: 50%;
-    background: #fff; top: 2px; left: 18px;
-    transition: left 0.2s;
-  }
-  .layer-toggle.off::after { left: 2px; }
-  .layer-name { font-size: 13px; color: var(--text); flex: 1; }
-  .layer-count { font-size: 11px; color: var(--text2); }
-  .layer-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-
-  /* Distance panel */
-  #dist-panel {
-    position: absolute; top: 70px; left: 12px; right: 12px; z-index: 200;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px 14px;
-    display: none;
-    font-size: 13px;
-  }
-  #dist-panel .title { color: var(--text2); margin-bottom: 6px; font-size: 12px; }
-  #dist-value { font-size: 22px; font-weight: 700; color: var(--accent2); }
-  #dist-clear { float: right; color: var(--danger); font-size: 12px; cursor: pointer; margin-top: 4px; }
-
-  /* Toast */
-  #toast {
-    position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
-    z-index: 300; background: rgba(30,30,50,0.95);
-    border: 1px solid var(--border); border-radius: 20px;
-    padding: 8px 18px; font-size: 13px; color: var(--text);
-    white-space: nowrap; pointer-events: none;
-    opacity: 0; transition: opacity 0.3s;
-  }
-  #toast.show { opacity: 1; }
-
-  /* Drop overlay */
-  #drop-overlay {
-    position: absolute; inset: 0; z-index: 500;
-    background: rgba(74,158,255,0.15);
-    border: 3px dashed var(--accent);
-    border-radius: 16px;
-    display: none; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 600; color: var(--accent);
-    pointer-events: none;
-  }
-  #drop-overlay.show { display: flex; }
-
-  /* Leaflet overrides */
-  .leaflet-control-zoom { display: none; }
-  .leaflet-popup-content-wrapper {
-    background: var(--surface2); color: var(--text);
-    border: 1px solid var(--border); border-radius: 10px;
-    font-size: 13px;
-  }
-  .leaflet-popup-tip { background: var(--surface2); }
-
-  /* Loading */
-  #loading {
-    position: absolute; inset: 0; z-index: 600;
-    background: var(--bg);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 16px;
-  }
-  #loading .logo { font-size: 48px; }
-  #loading .name { font-size: 20px; font-weight: 700; color: var(--text); }
-  #loading .sub { font-size: 13px; color: var(--text2); }
-  .spinner {
-    width: 32px; height: 32px; border: 3px solid var(--border);
-    border-top-color: var(--accent); border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+:root {
+  --bg:#0f0f1a;--surface:#1a1a2e;--surface2:#16213e;
+  --accent:#4a9eff;--accent2:#00d4aa;--danger:#ff6b6b;
+  --warn:#ff9f43;--text:#e8eaf0;--text2:#8892a4;
+  --border:rgba(255,255,255,0.08);--radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;color:var(--text);}
+#map{position:absolute;inset:0;z-index:1;}
+#topbar{position:absolute;top:0;left:0;right:0;z-index:100;background:linear-gradient(to bottom,rgba(15,15,26,0.97) 60%,transparent);padding:10px 10px 22px;display:flex;align-items:center;gap:6px;}
+#upload-btn{display:flex;align-items:center;gap:5px;background:var(--accent);color:#fff;border:none;border-radius:20px;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;}
+#file-input{display:none;}
+#file-label{flex:1;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+#coord-display{background:rgba(15,15,26,0.85);border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:10px;color:var(--text2);font-family:'SF Mono',monospace;white-space:nowrap;flex-shrink:0;}
+#goto-bar{position:absolute;top:54px;left:10px;right:10px;z-index:101;display:none;gap:6px;}
+#goto-bar input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--text);outline:none;}
+#goto-bar input::placeholder{color:var(--text2);}
+#goto-bar button{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+#toolbar{position:absolute;bottom:0;left:0;right:0;z-index:100;background:linear-gradient(to top,rgba(15,15,26,0.97) 60%,transparent);padding:14px 6px 18px;display:flex;gap:5px;align-items:flex-end;}
+.tool-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 4px;font-size:9px;color:var(--text2);cursor:pointer;flex:1;min-width:0;transition:background 0.15s,border-color 0.15s;}
+.tool-btn .icon{font-size:17px;}
+.tool-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.tool-btn.gps-active{background:var(--accent2);border-color:var(--accent2);color:#fff;}
+.tool-btn.rec-active{background:var(--danger);border-color:var(--danger);color:#fff;}
+.panel{position:absolute;left:10px;right:10px;bottom:84px;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:none;max-height:300px;overflow-y:auto;}
+.panel h3{font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;}
+.layer-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);}
+.layer-item:last-child{border-bottom:none;}
+.layer-toggle{width:34px;height:18px;border-radius:9px;background:var(--accent);flex-shrink:0;position:relative;transition:background 0.2s;cursor:pointer;}
+.layer-toggle.off{background:rgba(255,255,255,0.12);}
+.layer-toggle::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:18px;transition:left 0.2s;}
+.layer-toggle.off::after{left:2px;}
+.layer-name{font-size:12px;color:var(--text);flex:1;}
+.layer-count{font-size:10px;color:var(--text2);}
+.layer-color{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+#dist-panel{position:absolute;top:56px;left:10px;right:10px;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;display:none;}
+#dist-panel .dtitle{color:var(--text2);margin-bottom:4px;font-size:11px;}
+#dist-value{font-size:20px;font-weight:700;color:var(--accent2);}
+#dist-clear{float:right;color:var(--danger);font-size:12px;cursor:pointer;margin-top:2px;}
+#maptype-panel{position:absolute;left:10px;right:10px;bottom:84px;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:none;}
+#maptype-panel h3{font-size:13px;font-weight:600;margin-bottom:10px;}
+.mt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.mt-item{border:1.5px solid var(--border);border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;font-size:12px;color:var(--text2);transition:all 0.15s;}
+.mt-item span{font-size:22px;display:block;margin-bottom:4px;}
+.mt-item.selected{border-color:var(--accent);color:var(--accent);background:rgba(74,158,255,0.08);}
+.wp-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.wp-item:last-child{border-bottom:none;}
+.wp-goto{color:var(--accent);cursor:pointer;font-size:11px;flex-shrink:0;}
+.wp-del{color:var(--danger);cursor:pointer;font-size:16px;flex-shrink:0;line-height:1;}
+.wp-name{flex:1;color:var(--text);}
+.wp-coord{font-size:10px;color:var(--text2);font-family:monospace;}
+#note-modal{position:absolute;inset:0;z-index:500;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;padding:20px;}
+#note-modal.show{display:flex;}
+#note-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;width:100%;max-width:340px;}
+#note-box h3{font-size:14px;font-weight:600;margin-bottom:12px;}
+#note-name,#note-text{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--text);outline:none;margin-bottom:8px;}
+#note-text{height:72px;resize:none;}
+.modal-btns{display:flex;gap:8px;}
+.modal-btns button{flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;}
+#note-save{background:var(--accent);color:#fff;}
+#note-cancel{background:var(--surface2);color:var(--text2);}
+#rec-indicator{position:absolute;top:56px;right:10px;z-index:101;background:var(--danger);color:#fff;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;display:none;align-items:center;gap:5px;}
+#rec-indicator.show{display:flex;}
+#rec-dot{width:7px;height:7px;border-radius:50%;background:#fff;}
+#toast{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:400;background:rgba(26,26,46,0.97);border:1px solid var(--border);border-radius:20px;padding:7px 16px;font-size:12px;color:var(--text);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity 0.3s;}
+#toast.show{opacity:1;}
+#loading{position:absolute;inset:0;z-index:600;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.gps-pulse{animation:pulse 1.5s infinite;}
+#rec-dot{animation:pulse 1s infinite;}
 </style>
 </head>
 <body>
-
 <div id="loading">
-  <div class="logo">🗺️</div>
-  <div class="name">Arazi Harita</div>
-  <div class="sub">Yükleniyor...</div>
+  <div style="font-size:44px">🗺️</div>
+  <div style="font-size:18px;font-weight:700">Arazi Harita</div>
   <div class="spinner"></div>
 </div>
-
 <div id="map"></div>
-
 <div id="topbar">
-  <button id="upload-btn" onclick="document.getElementById('file-input').click()">
-    📂 Yükle
-  </button>
+  <button id="upload-btn" onclick="document.getElementById('file-input').click()">📂 Yükle</button>
   <input type="file" id="file-input" accept=".dxf,.dwg,.kml,.kmz">
   <span id="file-label">DXF · DWG · KML · KMZ</span>
-  <span id="coord-display" id="coord-display">—</span>
+  <span id="coord-display">—</span>
 </div>
-
+<div id="goto-bar">
+  <input type="text" id="goto-input" placeholder="Enlem, Boylam  (39.123, 35.456)" inputmode="decimal">
+  <button onclick="gotoCoord()">Git</button>
+</div>
+<div id="rec-indicator"><div id="rec-dot"></div><span id="rec-time">00:00</span></div>
 <div id="dist-panel">
-  <div class="title">Mesafe Ölçümü — haritaya dokun</div>
+  <div class="dtitle">Mesafe ölçümü — haritada iki noktaya dokun</div>
   <span id="dist-value">—</span>
   <span id="dist-clear" onclick="clearDistance()">✕ Temizle</span>
 </div>
-
 <div id="toolbar">
-  <div class="tool-btn" id="btn-gps" onclick="toggleGPS()">
-    <span class="icon">📍</span>
-    <span>GPS</span>
-  </div>
-  <div class="tool-btn" id="btn-dist" onclick="toggleDistance()">
-    <span class="icon">📏</span>
-    <span>Mesafe</span>
-  </div>
-  <div class="tool-btn" id="btn-layers" onclick="toggleLayers()">
-    <span class="icon">🗂️</span>
-    <span>Katmanlar</span>
-  </div>
-  <div class="tool-btn" id="btn-fit" onclick="fitToData()">
-    <span class="icon">⊡</span>
-    <span>Sığdır</span>
-  </div>
+  <div class="tool-btn" id="btn-gps" onclick="toggleGPS()"><span class="icon">📍</span><span>GPS</span></div>
+  <div class="tool-btn" id="btn-rec" onclick="toggleRecord()"><span class="icon">⏺</span><span>Rota</span></div>
+  <div class="tool-btn" id="btn-wp" onclick="togglePanel('wp-panel','btn-wp')"><span class="icon">📌</span><span>Nokta</span></div>
+  <div class="tool-btn" id="btn-dist" onclick="toggleDistance()"><span class="icon">📏</span><span>Mesafe</span></div>
+  <div class="tool-btn" id="btn-maptype" onclick="togglePanel('maptype-panel','btn-maptype')"><span class="icon">🛰</span><span>Harita</span></div>
+  <div class="tool-btn" id="btn-layers" onclick="togglePanel('layer-panel','btn-layers')"><span class="icon">🗂</span><span>Katman</span></div>
+  <div class="tool-btn" id="btn-goto" onclick="toggleGoto()"><span class="icon">🎯</span><span>Git</span></div>
+  <div class="tool-btn" id="btn-fit" onclick="fitToData()"><span class="icon">⊡</span><span>Sığdır</span></div>
 </div>
-
-<div id="layer-panel">
+<div class="panel" id="layer-panel">
   <h3>Katmanlar</h3>
-  <div id="layer-list"></div>
+  <div id="layer-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Henüz katman yok</div></div>
 </div>
-
+<div id="maptype-panel">
+  <h3>Harita tipi</h3>
+  <div class="mt-grid">
+    <div class="mt-item selected" id="mt-osm" onclick="setMapType('osm')"><span>🗺️</span>Standart</div>
+    <div class="mt-item" id="mt-sat" onclick="setMapType('sat')"><span>🛰️</span>Uydu</div>
+    <div class="mt-item" id="mt-topo" onclick="setMapType('topo')"><span>⛰️</span>Topoğrafik</div>
+    <div class="mt-item" id="mt-dark" onclick="setMapType('dark')"><span>🌑</span>Karanlık</div>
+  </div>
+</div>
+<div class="panel" id="wp-panel">
+  <h3>İşaretli Noktalar <span style="font-size:11px;color:var(--text2);font-weight:400">(haritaya uzun bas)</span></h3>
+  <div id="wp-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Haritaya uzun bas → nokta ekle</div></div>
+</div>
+<div id="note-modal">
+  <div id="note-box">
+    <h3>Nokta ekle</h3>
+    <input type="text" id="note-name" placeholder="İsim (ör: Röper A)" maxlength="40">
+    <textarea id="note-text" placeholder="Not (isteğe bağlı)"></textarea>
+    <div class="modal-btns">
+      <button id="note-cancel" onclick="closeNoteModal()">İptal</button>
+      <button id="note-save" onclick="saveWaypoint()">Kaydet</button>
+    </div>
+  </div>
+</div>
 <div id="toast"></div>
-<div id="drop-overlay" class="show">📂 Dosyayı bırak</div>
-
 <script>
-let map, layerGroups = {}, allBounds = null;
-let gpsWatcher = null, gpsMarker = null, gpsCircle = null;
-let gpsActive = false;
-let distMode = false, distPoints = [], distLine = null, distMarkers = [];
-const COLORS = ['#4a9eff','#00d4aa','#ff9f43','#ff6b6b','#a29bfe','#fd79a8','#55efc4'];
-let colorIdx = 0;
+let map,baseLayers={},currentBase='osm';
+let layerGroups={},allBounds=null;
+let gpsWatcher=null,gpsMarker=null,gpsCircle=null,gpsActive=false;
+let distMode=false,distPoints=[],distLine=null,distMarkers=[];
+let recording=false,recTrack=[],recPolyline=null,recStart=null,recTimer=null;
+let waypoints=[],pendingWP=null;
+let colorIdx=0;
+const COLORS=['#4a9eff','#00d4aa','#ff9f43','#ff6b6b','#a29bfe','#fd79a8','#55efc4','#74b9ff'];
 
-window.addEventListener('load', () => {
-  initMap();
-  setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 800);
-});
+window.addEventListener('load',()=>{initMap();setTimeout(()=>document.getElementById('loading').style.display='none',700);});
 
-function initMap() {
-  map = L.map('map', { zoomControl: false, attributionControl: false });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22 }).addTo(map);
-  map.setView([39.0, 35.0], 6);
-
-  map.on('click', onMapClick);
-  map.on('mousemove', onMapMove);
-
-  // Drop zone
-  const body = document.body;
-  body.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-overlay').classList.add('show'); });
-  body.addEventListener('dragleave', () => document.getElementById('drop-overlay').classList.remove('show'));
-  body.addEventListener('drop', e => {
-    e.preventDefault();
-    document.getElementById('drop-overlay').classList.remove('show');
-    handleFile(e.dataTransfer.files[0]);
+function initMap(){
+  map=L.map('map',{zoomControl:false,attributionControl:false});
+  baseLayers.osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:22});
+  baseLayers.sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+  baseLayers.topo=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17});
+  baseLayers.dark=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:20});
+  baseLayers.osm.addTo(map);
+  map.setView([39.0,35.0],6);
+  map.on('click',onMapClick);
+  map.on('mousemove',e=>{document.getElementById('coord-display').textContent=e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5);});
+  // Long press
+  let pt=null,pl=null;
+  map.on('mousedown touchstart',e=>{
+    pl=e.latlng||(e.originalEvent.touches?map.mouseEventToLatLng(e.originalEvent.touches[0]):null);
+    pt=setTimeout(()=>{if(pl)openNoteModal(pl);},650);
   });
-
-  document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
-  document.getElementById('drop-overlay').style.display = 'none';
+  map.on('mouseup touchend mousemove touchmove',()=>{if(pt){clearTimeout(pt);pt=null;}});
+  document.body.addEventListener('dragover',e=>e.preventDefault());
+  document.body.addEventListener('drop',e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);});
+  document.getElementById('file-input').addEventListener('change',e=>handleFile(e.target.files[0]));
+  document.getElementById('goto-input').addEventListener('keydown',e=>{if(e.key==='Enter')gotoCoord();});
 }
 
-function onMapMove(e) {
-  const lat = e.latlng.lat.toFixed(6), lng = e.latlng.lng.toFixed(6);
-  document.getElementById('coord-display').textContent = lat + ', ' + lng;
+function setMapType(type){
+  map.removeLayer(baseLayers[currentBase]);
+  baseLayers[type].addTo(map);baseLayers[type].bringToBack();
+  currentBase=type;
+  document.querySelectorAll('.mt-item').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('mt-'+type).classList.add('selected');
+  closeAllPanels();
 }
 
-function onMapClick(e) {
-  if (!distMode) return;
-  distPoints.push(e.latlng);
-  const m = L.circleMarker(e.latlng, {radius:6, color:'#fff', fillColor:'#ff9f43', fillOpacity:1, weight:2}).addTo(map);
-  distMarkers.push(m);
-
-  if (distPoints.length === 2) {
-    if (distLine) map.removeLayer(distLine);
-    distLine = L.polyline(distPoints, {color:'#ff9f43', weight:2, dashArray:'6,4'}).addTo(map);
-    const d = distPoints[0].distanceTo(distPoints[1]);
-    document.getElementById('dist-value').textContent = d >= 1000 ? (d/1000).toFixed(3) + ' km' : d.toFixed(1) + ' m';
-    distPoints = [];
-    showToast('Ölçüm tamamlandı');
-  } else {
-    document.getElementById('dist-value').textContent = 'İkinci noktayı seç...';
-  }
+function toggleGPS(){gpsActive?stopGPS():startGPS();}
+function startGPS(){
+  if(!navigator.geolocation){showToast('GPS desteklenmiyor');return;}
+  document.getElementById('btn-gps').querySelector('span:last-child').textContent='...';
+  gpsWatcher=navigator.geolocation.watchPosition(pos=>{
+    const{latitude:lat,longitude:lng,accuracy:acc}=pos.coords;
+    gpsActive=true;
+    document.getElementById('btn-gps').classList.add('gps-active');
+    document.getElementById('btn-gps').querySelector('span:last-child').textContent='GPS';
+    if(gpsMarker){map.removeLayer(gpsMarker);map.removeLayer(gpsCircle);}
+    gpsCircle=L.circle([lat,lng],{radius:acc,color:'#00d4aa',fillColor:'#00d4aa',fillOpacity:0.08,weight:1}).addTo(map);
+    gpsMarker=L.circleMarker([lat,lng],{radius:9,color:'#fff',fillColor:'#00d4aa',fillOpacity:1,weight:2.5,className:'gps-pulse'}).addTo(map).bindPopup('Konumunuz<br>±'+Math.round(acc)+' m');
+    if(recording)addTrackPoint(lat,lng);
+    map.setView([lat,lng],map.getZoom()<15?16:map.getZoom());
+  },err=>{
+    gpsActive=false;
+    document.getElementById('btn-gps').classList.remove('gps-active');
+    document.getElementById('btn-gps').querySelector('span:last-child').textContent='GPS';
+    showToast(err.code===1?'GPS izni gerekli':'GPS alınamadı');
+  },{enableHighAccuracy:true,maximumAge:2000});
 }
-
-function clearDistance() {
-  distPoints = [];
-  distMarkers.forEach(m => map.removeLayer(m));
-  distMarkers = [];
-  if (distLine) { map.removeLayer(distLine); distLine = null; }
-  document.getElementById('dist-value').textContent = '—';
-}
-
-function toggleDistance() {
-  distMode = !distMode;
-  const btn = document.getElementById('btn-dist');
-  const panel = document.getElementById('dist-panel');
-  btn.classList.toggle('active', distMode);
-  panel.style.display = distMode ? 'block' : 'none';
-  if (distMode) { clearDistance(); showToast('Haritada iki noktaya dokun'); }
-  closeLayers();
-}
-
-function toggleLayers() {
-  const panel = document.getElementById('layer-panel');
-  const open = panel.style.display === 'block';
-  panel.style.display = open ? 'none' : 'block';
-  document.getElementById('btn-layers').classList.toggle('active', !open);
-}
-
-function closeLayers() {
-  document.getElementById('layer-panel').style.display = 'none';
-  document.getElementById('btn-layers').classList.remove('active');
-}
-
-function toggleGPS() {
-  if (gpsActive) {
-    stopGPS();
-  } else {
-    startGPS();
-  }
-}
-
-function startGPS() {
-  if (!navigator.geolocation) { showToast('GPS desteklenmiyor'); return; }
-  const btn = document.getElementById('btn-gps');
-  btn.querySelector('span:last-child').textContent = '...';
-
-  gpsWatcher = navigator.geolocation.watchPosition(pos => {
-    const lat = pos.coords.latitude, lng = pos.coords.longitude, acc = pos.coords.accuracy;
-    gpsActive = true;
-    btn.classList.add('gps-active');
-    btn.querySelector('span:last-child').textContent = 'GPS';
-
-    if (gpsMarker) { map.removeLayer(gpsMarker); map.removeLayer(gpsCircle); }
-    gpsCircle = L.circle([lat,lng], {radius:acc, color:'#00d4aa', fillColor:'#00d4aa', fillOpacity:0.08, weight:1}).addTo(map);
-    gpsMarker = L.circleMarker([lat,lng], {radius:9, color:'#fff', fillColor:'#00d4aa', fillOpacity:1, weight:2.5})
-      .addTo(map).bindPopup('Konumunuz<br>±' + Math.round(acc) + 'm');
-    map.setView([lat,lng], map.getZoom() < 15 ? 16 : map.getZoom());
-  }, err => {
-    gpsActive = false;
-    btn.classList.remove('gps-active');
-    btn.querySelector('span:last-child').textContent = 'GPS';
-    if (err.code === 1) showToast('GPS izni gerekli');
-    else showToast('GPS alınamadı');
-  }, { enableHighAccuracy: true, maximumAge: 3000 });
-}
-
-function stopGPS() {
-  if (gpsWatcher) navigator.geolocation.clearWatch(gpsWatcher);
-  gpsActive = false;
-  const btn = document.getElementById('btn-gps');
-  btn.classList.remove('gps-active');
-  btn.querySelector('span:last-child').textContent = 'GPS';
-  if (gpsMarker) { map.removeLayer(gpsMarker); map.removeLayer(gpsCircle); gpsMarker = null; }
+function stopGPS(){
+  if(gpsWatcher)navigator.geolocation.clearWatch(gpsWatcher);
+  gpsActive=false;
+  document.getElementById('btn-gps').classList.remove('gps-active');
+  document.getElementById('btn-gps').querySelector('span:last-child').textContent='GPS';
+  if(gpsMarker){map.removeLayer(gpsMarker);map.removeLayer(gpsCircle);gpsMarker=null;}
   showToast('GPS kapatıldı');
 }
 
-function fitToData() {
-  if (allBounds) map.fitBounds(allBounds.pad(0.1));
-  else showToast('Henüz dosya yüklenmedi');
+function toggleRecord(){recording?stopRecord():startRecord();}
+function startRecord(){
+  if(!gpsActive){startGPS();setTimeout(startRecord,1500);return;}
+  recording=true;recTrack=[];recStart=Date.now();
+  recPolyline=L.polyline([],{color:'#ff6b6b',weight:3,opacity:0.85}).addTo(map);
+  document.getElementById('btn-rec').classList.add('rec-active');
+  document.getElementById('btn-rec').querySelector('span:last-child').textContent='Dur';
+  document.getElementById('rec-indicator').classList.add('show');
+  recTimer=setInterval(()=>{
+    const s=Math.floor((Date.now()-recStart)/1000),m=Math.floor(s/60),sc=s%60;
+    document.getElementById('rec-time').textContent=String(m).padStart(2,'0')+':'+String(sc).padStart(2,'0');
+  },1000);
+  showToast('Rota kaydı başladı');
+}
+function stopRecord(){
+  recording=false;
+  if(recTimer){clearInterval(recTimer);recTimer=null;}
+  document.getElementById('btn-rec').classList.remove('rec-active');
+  document.getElementById('btn-rec').querySelector('span:last-child').textContent='Rota';
+  document.getElementById('rec-indicator').classList.remove('show');
+  if(recTrack.length>1){
+    let d=0;for(let i=1;i<recTrack.length;i++)d+=L.latLng(recTrack[i-1]).distanceTo(L.latLng(recTrack[i]));
+    showToast('Kaydedildi — '+(d>=1000?(d/1000).toFixed(2)+'km':d.toFixed(0)+'m'));
+    addLayer('Rota '+new Date().toLocaleTimeString('tr'),L.layerGroup([recPolyline]),'#ff6b6b',recTrack.length+' pt');
+  }else{if(recPolyline)map.removeLayer(recPolyline);showToast('Rota çok kısa');}
+}
+function addTrackPoint(lat,lng){recTrack.push([lat,lng]);if(recPolyline)recPolyline.setLatLngs(recTrack);}
+
+function openNoteModal(ll){
+  pendingWP=ll;
+  document.getElementById('note-name').value='Nokta '+(waypoints.length+1);
+  document.getElementById('note-text').value='';
+  document.getElementById('note-modal').classList.add('show');
+  setTimeout(()=>document.getElementById('note-name').focus(),100);
+}
+function closeNoteModal(){document.getElementById('note-modal').classList.remove('show');pendingWP=null;}
+function saveWaypoint(){
+  if(!pendingWP)return;
+  const name=document.getElementById('note-name').value||('Nokta '+(waypoints.length+1));
+  const note=document.getElementById('note-text').value;
+  const ll=pendingWP,id=Date.now();
+  const marker=L.marker(ll,{icon:L.divIcon({html:`<div style="background:#ff9f43;border:2px solid #fff;border-radius:50% 50% 50% 0;width:20px;height:20px;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>`,iconSize:[20,20],iconAnchor:[10,20],className:''})}).addTo(map)
+    .bindPopup(`<b style="color:#e8eaf0">${name}</b>${note?'<br><span style="color:#8892a4;font-size:11px">'+note+'</span>':''}<br><span style="font-size:10px;color:#8892a4">${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}</span>`);
+  waypoints.push({id,name,note,ll,marker});
+  closeNoteModal();renderWPList();showToast('"'+name+'" eklendi');
+}
+function renderWPList(){
+  const list=document.getElementById('wp-list');
+  if(!waypoints.length){list.innerHTML='<div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Haritaya uzun bas → nokta ekle</div>';return;}
+  list.innerHTML=waypoints.map(wp=>`<div class="wp-item"><span style="color:#ff9f43">📌</span><div style="flex:1;min-width:0"><div class="wp-name">${wp.name}</div><div class="wp-coord">${wp.ll.lat.toFixed(5)}, ${wp.ll.lng.toFixed(5)}</div></div><span class="wp-goto" onclick="flyToWP(${wp.id})">Git</span><span class="wp-del" onclick="deleteWP(${wp.id})">×</span></div>`).join('');
+}
+function flyToWP(id){const wp=waypoints.find(w=>w.id===id);if(wp){map.flyTo(wp.ll,18);closeAllPanels();}}
+function deleteWP(id){const idx=waypoints.findIndex(w=>w.id===id);if(idx>=0){map.removeLayer(waypoints[idx].marker);waypoints.splice(idx,1);renderWPList();}}
+
+function toggleGoto(){
+  const bar=document.getElementById('goto-bar');
+  const open=bar.style.display==='flex';
+  bar.style.display=open?'none':'flex';
+  document.getElementById('btn-goto').classList.toggle('active',!open);
+  if(!open)setTimeout(()=>document.getElementById('goto-input').focus(),100);
+}
+function gotoCoord(){
+  const val=document.getElementById('goto-input').value.trim();
+  const parts=val.split(/[,\s]+/).map(Number);
+  if(parts.length>=2&&!isNaN(parts[0])&&!isNaN(parts[1])){
+    const lat=parts[0],lng=parts[1];
+    if(lat>=-90&&lat<=90&&lng>=-180&&lng<=180){
+      map.flyTo([lat,lng],17);
+      L.circleMarker([lat,lng],{radius:8,color:'#ff9f43',fillColor:'#ff9f43',fillOpacity:0.9,weight:2}).addTo(map).bindPopup(lat.toFixed(5)+', '+lng.toFixed(5)).openPopup();
+      document.getElementById('goto-bar').style.display='none';
+      document.getElementById('btn-goto').classList.remove('active');
+    }else showToast('Geçersiz koordinat');
+  }else showToast('Format: 39.12345, 35.12345');
 }
 
-function handleFile(file) {
-  if (!file) return;
-  const name = file.name.toLowerCase();
-  document.getElementById('file-label').textContent = file.name;
+function toggleDistance(){
+  distMode=!distMode;
+  document.getElementById('btn-dist').classList.toggle('active',distMode);
+  document.getElementById('dist-panel').style.display=distMode?'block':'none';
+  if(distMode){clearDistance();closeAllPanels(true);showToast('İki noktaya dokun');}
+}
+function onMapClick(e){
+  if(!distMode)return;
+  distPoints.push(e.latlng);
+  distMarkers.push(L.circleMarker(e.latlng,{radius:6,color:'#fff',fillColor:'#ff9f43',fillOpacity:1,weight:2}).addTo(map));
+  if(distPoints.length===2){
+    if(distLine)map.removeLayer(distLine);
+    distLine=L.polyline(distPoints,{color:'#ff9f43',weight:2,dashArray:'6,4'}).addTo(map);
+    const d=distPoints[0].distanceTo(distPoints[1]);
+    document.getElementById('dist-value').textContent=d>=1000?(d/1000).toFixed(3)+' km':d.toFixed(1)+' m';
+    distPoints=[];
+  }else document.getElementById('dist-value').textContent='İkinci noktayı seç...';
+}
+function clearDistance(){
+  distPoints=[];distMarkers.forEach(m=>map.removeLayer(m));distMarkers=[];
+  if(distLine){map.removeLayer(distLine);distLine=null;}
+  document.getElementById('dist-value').textContent='—';
+}
+
+function addLayer(name,lg,color,count){
+  const id='l'+Date.now();
+  layerGroups[id]={layer:lg,visible:true,name,color,count};
+  lg.addTo(map);renderLayerList();
+}
+function renderLayerList(){
+  const list=document.getElementById('layer-list');
+  const ids=Object.keys(layerGroups);
+  if(!ids.length){list.innerHTML='<div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Henüz katman yok</div>';return;}
+  list.innerHTML=ids.map(id=>{const i=layerGroups[id];return`<div class="layer-item"><div class="layer-color" style="background:${i.color}"></div><span class="layer-name">${i.name}</span><span class="layer-count">${i.count}</span><div class="layer-toggle ${i.visible?'':'off'}" onclick="toggleLayer('${id}')"></div></div>`;}).join('');
+}
+function toggleLayer(id){const i=layerGroups[id];if(!i)return;i.visible=!i.visible;i.visible?map.addLayer(i.layer):map.removeLayer(i.layer);renderLayerList();}
+function fitToData(){if(allBounds)map.fitBounds(allBounds.pad(0.1));else showToast('Henüz dosya yüklenmedi');}
+
+function togglePanel(panelId,btnId){
+  const panel=document.getElementById(panelId);
+  const open=panel.style.display==='block';
+  closeAllPanels();
+  if(!open){panel.style.display='block';document.getElementById(btnId).classList.add('active');}
+}
+function closeAllPanels(exceptDist){
+  ['layer-panel','maptype-panel','wp-panel'].forEach(id=>document.getElementById(id).style.display='none');
+  ['btn-layers','btn-maptype','btn-wp'].forEach(id=>document.getElementById(id).classList.remove('active'));
+}
+
+function handleFile(file){
+  if(!file)return;
+  const name=file.name.toLowerCase();
+  document.getElementById('file-label').textContent=file.name;
   showToast('Yükleniyor...');
-
-  if (name.endsWith('.kml')) {
-    const r = new FileReader();
-    r.onload = e => parseKML(e.target.result, file.name);
-    r.readAsText(file);
-  } else if (name.endsWith('.kmz')) {
-    const r = new FileReader();
-    r.onload = e => parseKMZ(e.target.result, file.name);
-    r.readAsArrayBuffer(file);
-  } else if (name.endsWith('.dxf')) {
-    const r = new FileReader();
-    r.onload = e => parseDXF(e.target.result, file.name);
-    r.readAsText(file);
-  } else if (name.endsWith('.dwg')) {
-    showToast('DWG: Civil 3D\'den DXF veya KMZ olarak export edin');
-  }
+  const r=new FileReader();
+  if(name.endsWith('.kml')){r.onload=e=>parseKML(e.target.result,file.name);r.readAsText(file);}
+  else if(name.endsWith('.kmz')){r.onload=e=>parseKMZ(e.target.result,file.name);r.readAsArrayBuffer(file);}
+  else if(name.endsWith('.dxf')){r.onload=e=>parseDXF(e.target.result,file.name);r.readAsText(file);}
+  else if(name.endsWith('.dwg'))showToast('DWG: Civil 3D\'den DXF veya KMZ export edin');
+  else showToast('Desteklenmeyen format');
 }
 
-function addLayer(name, leafletLayer, color, count) {
-  const id = 'layer_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  layerGroups[id] = { layer: leafletLayer, visible: true, name, color, count };
-  leafletLayer.addTo(map);
-  renderLayerList();
-  return id;
-}
-
-function renderLayerList() {
-  const list = document.getElementById('layer-list');
-  list.innerHTML = '';
-  Object.entries(layerGroups).forEach(([id, info]) => {
-    const item = document.createElement('div');
-    item.className = 'layer-item';
-    item.innerHTML = `
-      <div class="layer-color" style="background:${info.color}"></div>
-      <span class="layer-name">${info.name}</span>
-      <span class="layer-count">${info.count} obj.</span>
-      <div class="layer-toggle ${info.visible ? '' : 'off'}" onclick="toggleLayer('${id}')"></div>
-    `;
-    list.appendChild(item);
+function parseKML(text,name){
+  const doc=new DOMParser().parseFromString(text,'text/xml');
+  const lg=L.layerGroup();const coords=[];let count=0;
+  const color=COLORS[colorIdx++%COLORS.length];
+  doc.querySelectorAll('Placemark').forEach(pm=>{
+    const pname=pm.querySelector('name')?.textContent||'';
+    const lineEl=pm.querySelector('LineString coordinates');
+    const polyEl=pm.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
+    const ptEl=pm.querySelector('Point coordinates');
+    if(lineEl){const pts=kmlPts(lineEl.textContent);if(pts.length){L.polyline(pts,{color,weight:2}).addTo(lg).bindPopup(pname||'Çizgi');pts.forEach(p=>coords.push(p));count++;}}
+    if(polyEl){const pts=kmlPts(polyEl.textContent);if(pts.length){L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg).bindPopup(pname||'Alan');pts.forEach(p=>coords.push(p));count++;}}
+    if(ptEl){const p=ptEl.textContent.trim().split(/[\s,]+/);if(p.length>=2){const lat=parseFloat(p[1]),lng=parseFloat(p[0]);if(!isNaN(lat)&&!isNaN(lng)){L.circleMarker([lat,lng],{radius:5,color,fillColor:color,fillOpacity:0.9}).addTo(lg).bindPopup(pname||'Nokta');coords.push([lat,lng]);count++;}}}
   });
-  if (Object.keys(layerGroups).length === 0) {
-    list.innerHTML = '<div style="color:var(--text2);font-size:13px;text-align:center;padding:16px">Henüz katman yok</div>';
-  }
+  if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
+  else showToast('KML\'de geometri bulunamadı');
+}
+function kmlPts(text){return text.trim().split(/\s+/).map(c=>{const p=c.split(',');if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))return[lat,lng];}return null;}).filter(Boolean);}
+async function parseKMZ(buffer,name){
+  try{const zip=await JSZip.loadAsync(buffer);const kf=Object.keys(zip.files).find(f=>f.toLowerCase().endsWith('.kml'));if(!kf){showToast('KMZ içinde KML yok');return;}parseKML(await zip.files[kf].async('text'),name);}
+  catch(e){showToast('KMZ açılamadı');}
 }
 
-function toggleLayer(id) {
-  const info = layerGroups[id];
-  if (!info) return;
-  info.visible = !info.visible;
-  if (info.visible) map.addLayer(info.layer);
-  else map.removeLayer(info.layer);
-  renderLayerList();
-}
-
-function parseKML(text, name) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(text, 'text/xml');
-  const lg = L.layerGroup();
-  const coords = [];
-  let count = 0;
-  const color = COLORS[colorIdx++ % COLORS.length];
-
-  doc.querySelectorAll('Placemark').forEach(pm => {
-    const pname = pm.querySelector('name')?.textContent || '';
-    const lineEl = pm.querySelector('LineString coordinates');
-    const polyEl = pm.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
-    const pointEl = pm.querySelector('Point coordinates');
-
-    if (lineEl) {
-      const pts = kmlPts(lineEl.textContent);
-      if (pts.length) { L.polyline(pts, {color, weight:2}).addTo(lg).bindPopup(pname||'Çizgi'); pts.forEach(p=>coords.push(p)); count++; }
-    }
-    if (polyEl) {
-      const pts = kmlPts(polyEl.textContent);
-      if (pts.length) { L.polygon(pts, {color, weight:2, fillOpacity:0.1}).addTo(lg).bindPopup(pname||'Alan'); pts.forEach(p=>coords.push(p)); count++; }
-    }
-    if (pointEl) {
-      const p = pointEl.textContent.trim().split(/[\s,]+/);
-      if (p.length >= 2) {
-        const lat=parseFloat(p[1]), lng=parseFloat(p[0]);
-        if (!isNaN(lat)&&!isNaN(lng)) { L.circleMarker([lat,lng],{radius:5,color,fillColor:color,fillOpacity:0.9}).addTo(lg).bindPopup(pname||'Nokta'); coords.push([lat,lng]); count++; }
-      }
-    }
-  });
-
-  if (coords.length) {
-    allBounds = L.latLngBounds(coords);
-    map.fitBounds(allBounds.pad(0.1));
-    addLayer(name, lg, color, count);
-    showToast(count + ' obje yüklendi');
-  } else { showToast('Geometri bulunamadı'); }
-}
-
-function kmlPts(text) {
-  return text.trim().split(/\s+/).map(c => {
-    const p = c.split(',');
-    if (p.length >= 2) { const lng=parseFloat(p[0]),lat=parseFloat(p[1]); if (!isNaN(lat)&&!isNaN(lng)) return [lat,lng]; }
-    return null;
-  }).filter(Boolean);
-}
-
-async function parseKMZ(buffer, name) {
-  try {
-    const zip = await JSZip.loadAsync(buffer);
-    const kmlFile = Object.keys(zip.files).find(f => f.toLowerCase().endsWith('.kml'));
-    if (!kmlFile) { showToast('KMZ içinde KML bulunamadı'); return; }
-    const kmlText = await zip.files[kmlFile].async('text');
-    parseKML(kmlText, name);
-  } catch(e) { showToast('KMZ açılamadı'); }
-}
-
-function parseDXF(text, name) {
-  const lines = text.split('\n').map(l => l.trim());
-  const lg = L.layerGroup();
-  const coords = [];
-  let count = 0;
-  const color = COLORS[colorIdx++ % COLORS.length];
-  let i = 0;
-
-  while (i < lines.length - 1) {
-    if (lines[i] === '0') {
-      const etype = lines[i+1].trim();
-      if (['LINE','LWPOLYLINE','POLYLINE','POINT','CIRCLE'].includes(etype)) {
-        const ent = { type: etype };
-        let x10=[], y20=[], x11=NaN, y21=NaN;
-        let j = i + 2;
-        while (j < Math.min(i + 300, lines.length - 1)) {
-          const code = parseInt(lines[j]);
-          const val = parseFloat(lines[j+1]);
-          if (!isNaN(code) && !isNaN(val)) {
-            if (code===10) x10.push(val);
-            else if (code===20) y20.push(val);
-            else if (code===11) x11=val;
-            else if (code===21) y21=val;
-            else if (code===0) break;
-          }
-          j += 2;
+function parseDXF(text,name){
+  const lines=text.split('\n').map(l=>l.trim());
+  const lg=L.layerGroup();const coords=[];let count=0;
+  const color=COLORS[colorIdx++%COLORS.length];
+  let i=0;
+  while(i<lines.length-1){
+    if(lines[i]==='0'){
+      const etype=lines[i+1].trim();
+      if(['LINE','LWPOLYLINE','POLYLINE','POINT','CIRCLE','ARC','SPLINE'].includes(etype)){
+        const x10=[],y20=[];let x11=NaN,y21=NaN,flags=0,radius=0;
+        let j=i+2;
+        while(j<Math.min(i+500,lines.length-1)){
+          const code=parseInt(lines[j]);const raw=lines[j+1]||'';const val=parseFloat(raw);
+          if(code===0&&j>i+2)break;
+          if(code===10)x10.push(val);
+          else if(code===20)y20.push(val);
+          else if(code===11)x11=val;
+          else if(code===21)y21=val;
+          else if(code===70)flags=parseInt(raw);
+          else if(code===40)radius=val;
+          j+=2;
         }
-
-        if (x10.length > 0 && y20.length > 0) {
-          const avgX = x10.reduce((a,b)=>a+b,0)/x10.length;
-          const avgY = y20.reduce((a,b)=>a+b,0)/y20.length;
-          const isGeo = avgX>=-180&&avgX<=180&&avgY>=-90&&avgY<=90;
-
-          if (isGeo) {
-            if (etype==='POINT') {
+        if(x10.length>0&&y20.length>0){
+          const avgX=x10.reduce((a,b)=>a+b,0)/x10.length;
+          const avgY=y20.reduce((a,b)=>a+b,0)/y20.length;
+          const isGeo=avgX>=-180&&avgX<=180&&avgY>=-90&&avgY<=90;
+          if(isGeo){
+            if(etype==='POINT'){
               L.circleMarker([y20[0],x10[0]],{radius:4,color,fillColor:color,fillOpacity:0.9}).addTo(lg);
-              coords.push([y20[0],x10[0]]); count++;
-            } else if (etype==='LINE' && !isNaN(x11) && !isNaN(y21)) {
+              coords.push([y20[0],x10[0]]);count++;
+            }else if(etype==='LINE'&&!isNaN(x11)&&!isNaN(y21)){
               L.polyline([[y20[0],x10[0]],[y21,x11]],{color,weight:1.5}).addTo(lg);
-              coords.push([y20[0],x10[0]],[y21,x11]); count++;
-            } else if ((etype==='LWPOLYLINE'||etype==='POLYLINE') && x10.length>1) {
-              const pts = x10.map((x,k)=>[y20[k],x]).filter(p=>p[0]&&p[1]&&!isNaN(p[0])&&!isNaN(p[1]));
-              if (pts.length>1) { L.polyline(pts,{color,weight:1.5}).addTo(lg); pts.forEach(p=>coords.push(p)); count++; }
+              coords.push([y20[0],x10[0]],[y21,x11]);count++;
+            }else if(etype==='LWPOLYLINE'&&x10.length>1){
+              const pts=x10.map((x,k)=>[y20[k],x]).filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
+              if(pts.length>1){
+                const closed=(flags&1)===1;
+                closed?L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg):L.polyline(pts,{color,weight:1.5}).addTo(lg);
+                pts.forEach(p=>coords.push(p));count++;
+              }
+            }else if(etype==='CIRCLE'&&radius>0){
+              L.circle([y20[0],x10[0]],{radius,color,weight:1.5,fillOpacity:0.06}).addTo(lg);
+              coords.push([y20[0],x10[0]]);count++;
+            }else if((etype==='SPLINE'||etype==='POLYLINE')&&x10.length>1){
+              const pts=x10.map((x,k)=>[y20[k],x]).filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
+              if(pts.length>1){L.polyline(pts,{color,weight:1.5}).addTo(lg);pts.forEach(p=>coords.push(p));count++;}
             }
           }
         }
@@ -532,24 +435,11 @@ function parseDXF(text, name) {
     }
     i++;
   }
-
-  if (coords.length) {
-    allBounds = L.latLngBounds(coords);
-    map.fitBounds(allBounds.pad(0.1));
-    addLayer(name, lg, color, count);
-    showToast(count + ' obje yüklendi');
-  } else {
-    showToast('Coğrafi koordinat bulunamadı — KMZ deneyin');
-  }
+  if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
+  else showToast('Coğrafi koordinat yok — Civil 3D\'de koordinat sistemi ata veya KMZ export et');
 }
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
-}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 </script>
-
 </body>
 </html>
