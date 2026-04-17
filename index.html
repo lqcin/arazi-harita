@@ -340,6 +340,17 @@ function toggleDistance(){
   if(distMode){clearDistance();closeAllPanels(true);showToast('İki noktaya dokun');}
 }
 function onMapClick(e){
+  // GPS aktifse uzaklik goster
+  if(!distMode && gpsActive && gpsMarker){
+    const myPos = gpsMarker.getLatLng();
+    const d = myPos.distanceTo(e.latlng);
+    const dStr = d>=1000?(d/1000).toFixed(2)+' km':d.toFixed(0)+' m';
+    L.popup({closeButton:true, className:''})
+      .setLatLng(e.latlng)
+      .setContent('<div style="text-align:center;min-width:120px"><div style="font-size:11px;color:#8892a4;margin-bottom:2px">Konumunuzdan uzaklik</div><div style="font-size:18px;font-weight:700;color:#00d4aa">'+dStr+'</div></div>')
+      .openOn(map);
+    return;
+  }
   if(!distMode)return;
   distPoints.push(e.latlng);
   distMarkers.push(L.circleMarker(e.latlng,{radius:6,color:'#fff',fillColor:'#ff9f43',fillOpacity:1,weight:2}).addTo(map));
