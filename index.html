@@ -137,6 +137,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
   <h3>İşaretli Noktalar <span style="font-size:11px;color:var(--text2);font-weight:400">(haritaya uzun bas)</span></h3>
   <div id="wp-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Haritaya uzun bas → nokta ekle</div></div>
 </div>
+<!-- Projeksiyon seçim modal -->
+<div id="proj-modal" style="position:absolute;inset:0;z-index:510;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;width:100%;max-width:340px;">
+    <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Koordinat Sistemi Seç</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:12px;">DXF dosyanın Civil 3D'deki koordinat sistemiyle eşleştir</div>
+    <select id="proj-select" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;color:var(--text);outline:none;margin-bottom:14px;"></select>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeProjModal()" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--surface2);color:var(--text2);">İptal</button>
+      <button onclick="applyProj()" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:#fff;">Uygula</button>
+    </div>
+  </div>
+</div>
 <div id="note-modal">
   <div id="note-box">
     <h3>Nokta ekle</h3>
@@ -355,7 +367,7 @@ function handleFile(file){
   const r=new FileReader();
   if(name.endsWith('.kml')){r.onload=e=>parseKML(e.target.result,file.name);r.readAsText(file);}
   else if(name.endsWith('.kmz')){r.onload=e=>parseKMZ(e.target.result,file.name);r.readAsArrayBuffer(file);}
-  else if(name.endsWith('.dxf')){r.onload=e=>parseDXF(e.target.result,file.name);r.readAsText(file);}
+  else if(name.endsWith('.dxf')){r.onload=e=>openProjModal(e.target.result,file.name);r.readAsText(file);}
   else if(name.endsWith('.dwg'))showToast('DWG: Civil 3D\'den DXF veya KMZ export edin');
   else showToast('Desteklenmeyen format');
 }
@@ -440,6 +452,159 @@ function parseDXF(text,name){
 }
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+
+// ── Koordinat dönüşüm sistemi ─────────────────────────────
+// Türkiye projeksiyonları — Transverse Mercator parametreleri
+const PROJECTIONS = {
+  'wgs84':   { name:'WGS84 / Coğrafi (varsayılan)', type:'geo' },
+  'turef_tm27': { name:'TUREF / TM27', type:'tm', lon0:27, fe:500000, fn:0, k:1.0, a:6378137, f:1/298.257222101 },
+  'turef_tm30': { name:'TUREF / TM30', type:'tm', lon0:30, fe:500000, fn:0, k:1.0, a:6378137, f:1/298.257222101 },
+  'turef_tm33': { name:'TUREF / TM33', type:'tm', lon0:33, fe:500000, fn:0, k:1.0, a:6378137, f:1/298.257222101 },
+  'turef_tm36': { name:'TUREF / TM36', type:'tm', lon0:36, fe:500000, fn:0, k:1.0, a:6378137, f:1/298.257222101 },
+  'turef_tm39': { name:'TUREF / TM39', type:'tm', lon0:39, fe:500000, fn:0, k:1.0, a:6378137, f:1/298.257222101 },
+  'utm35n_ed50':{ name:'UTM Zone 35N (ED50)', type:'tm', lon0:27, fe:500000, fn:0, k:0.9996, a:6378388, f:1/297.0 },
+  'utm36n_ed50':{ name:'UTM Zone 36N (ED50)', type:'tm', lon0:33, fe:500000, fn:0, k:0.9996, a:6378388, f:1/297.0 },
+  'utm37n_ed50':{ name:'UTM Zone 37N (ED50)', type:'tm', lon0:39, fe:500000, fn:0, k:0.9996, a:6378388, f:1/297.0 },
+  'utm35n_wgs':{ name:'UTM Zone 35N (WGS84)', type:'tm', lon0:27, fe:500000, fn:0, k:0.9996, a:6378137, f:1/298.257223563 },
+  'utm36n_wgs':{ name:'UTM Zone 36N (WGS84)', type:'tm', lon0:33, fe:500000, fn:0, k:0.9996, a:6378137, f:1/298.257223563 },
+  'utm37n_wgs':{ name:'UTM Zone 37N (WGS84)', type:'tm', lon0:39, fe:500000, fn:0, k:0.9996, a:6378137, f:1/298.257223563 },
+};
+
+let selectedProj = 'wgs84';
+let pendingDXFText = null;
+let pendingDXFName = null;
+
+// Transverse Mercator → WGS84 lat/lng
+function tmToLatLng(E, N, proj) {
+  const {lon0, fe, fn, k, a, f} = proj;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a), e = Math.sqrt(e2);
+  const e1 = (1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const x = E - fe, y = N - fn;
+  const M = y / k;
+  const mu = M / (a*(1 - e2/4 - 3*e2*e2/64 - 5*e2*e2*e2/256));
+  const phi1 = mu + (3*e1/2 - 27*e1*e1*e1/32)*Math.sin(2*mu)
+    + (21*e1*e1/16 - 55*e1*e1*e1*e1/32)*Math.sin(4*mu)
+    + (151*e1*e1*e1/96)*Math.sin(6*mu)
+    + (1097*e1*e1*e1*e1/512)*Math.sin(8*mu);
+  const N1 = a/Math.sqrt(1-e2*Math.sin(phi1)*Math.sin(phi1));
+  const T1 = Math.tan(phi1)*Math.tan(phi1);
+  const C1 = e2/(1-e2)*Math.cos(phi1)*Math.cos(phi1);
+  const R1 = a*(1-e2)/Math.pow(1-e2*Math.sin(phi1)*Math.sin(phi1),1.5);
+  const D = x/(N1*k);
+  const lat = phi1 - (N1*Math.tan(phi1)/R1)*(D*D/2 - (5+3*T1+10*C1-4*C1*C1-9*e2/(1-e2))*D*D*D*D/24
+    + (61+90*T1+298*C1+45*T1*T1-252*e2/(1-e2)-3*C1*C1)*D*D*D*D*D*D/720);
+  const lng = (lon0*Math.PI/180) + (D - (1+2*T1+C1)*D*D*D/6
+    + (5-2*C1+(28*T1)-3*C1*C1+8*e2/(1-e2)+24*T1*T1)*D*D*D*D*D/120)/Math.cos(phi1);
+  return [lat*180/Math.PI, lng*180/Math.PI];
+}
+
+function convertCoord(x, y) {
+  const proj = PROJECTIONS[selectedProj];
+  if (!proj || proj.type === 'geo') return [y, x]; // [lat, lng]
+  return tmToLatLng(x, y, proj);
+}
+
+function openProjModal(dxfText, dxfName) {
+  pendingDXFText = dxfText;
+  pendingDXFName = dxfName;
+  if(selectedProj==='wgs84') selectedProj='turef_tm30';
+  const sel = document.getElementById('proj-select');
+  sel.innerHTML = `
+    <optgroup label="Turkiye (TUREF)">
+      <option value="turef_tm27" ${selectedProj==='turef_tm27'?'selected':''}>TUREF / TM27</option>
+      <option value="turef_tm30" ${selectedProj==='turef_tm30'?'selected':''}>TUREF / TM30 — Istanbul / Antalya</option>
+      <option value="turef_tm33" ${selectedProj==='turef_tm33'?'selected':''}>TUREF / TM33</option>
+      <option value="turef_tm36" ${selectedProj==='turef_tm36'?'selected':''}>TUREF / TM36</option>
+      <option value="turef_tm39" ${selectedProj==='turef_tm39'?'selected':''}>TUREF / TM39</option>
+    </optgroup>
+    <optgroup label="Turkiye (UTM / ED50)">
+      <option value="utm35n_ed50" ${selectedProj==='utm35n_ed50'?'selected':''}>UTM Zone 35N (ED50)</option>
+      <option value="utm36n_ed50" ${selectedProj==='utm36n_ed50'?'selected':''}>UTM Zone 36N (ED50)</option>
+      <option value="utm37n_ed50" ${selectedProj==='utm37n_ed50'?'selected':''}>UTM Zone 37N (ED50)</option>
+    </optgroup>
+    <optgroup label="UTM / WGS84">
+      <option value="utm35n_wgs" ${selectedProj==='utm35n_wgs'?'selected':''}>UTM Zone 35N (WGS84)</option>
+      <option value="utm36n_wgs" ${selectedProj==='utm36n_wgs'?'selected':''}>UTM Zone 36N (WGS84)</option>
+      <option value="utm37n_wgs" ${selectedProj==='utm37n_wgs'?'selected':''}>UTM Zone 37N (WGS84)</option>
+    </optgroup>
+    <optgroup label="Diger">
+      <option value="wgs84" ${selectedProj==='wgs84'?'selected':''}>WGS84 / Cografi</option>
+    </optgroup>`;
+  document.getElementById('proj-modal').classList.add('show');
+}
+
+function closeProjModal() {
+  document.getElementById('proj-modal').classList.remove('show');
+}
+
+function applyProj() {
+  selectedProj = document.getElementById('proj-select').value;
+  closeProjModal();
+  if (pendingDXFText) parseDXFWithProj(pendingDXFText, pendingDXFName);
+}
+
+function parseDXFWithProj(text, name) {
+  const lines = text.split('\n').map(l=>l.trim());
+  const lg = L.layerGroup(); const coords = []; let count = 0;
+  const color = COLORS[colorIdx++%COLORS.length];
+  let i = 0;
+  while(i < lines.length-1){
+    if(lines[i]==='0'){
+      const etype = lines[i+1].trim();
+      if(['LINE','LWPOLYLINE','POLYLINE','POINT','CIRCLE','ARC','SPLINE'].includes(etype)){
+        const x10=[],y20=[];let x11=NaN,y21=NaN,flags=0,radius=0;
+        let j=i+2;
+        while(j<Math.min(i+500,lines.length-1)){
+          const code=parseInt(lines[j]);const raw=lines[j+1]||'';const val=parseFloat(raw);
+          if(code===0&&j>i+2)break;
+          if(code===10)x10.push(val);
+          else if(code===20)y20.push(val);
+          else if(code===11)x11=val;
+          else if(code===21)y21=val;
+          else if(code===70)flags=parseInt(raw);
+          else if(code===40)radius=val;
+          j+=2;
+        }
+        if(x10.length>0&&y20.length>0){
+          const conv = (x,y) => convertCoord(x,y);
+          if(etype==='POINT'){
+            const [lat,lng]=conv(x10[0],y20[0]);
+            if(!isNaN(lat)&&lat>=-90&&lat<=90){
+              L.circleMarker([lat,lng],{radius:4,color,fillColor:color,fillOpacity:0.9}).addTo(lg);
+              coords.push([lat,lng]);count++;
+            }
+          }else if(etype==='LINE'&&!isNaN(x11)&&!isNaN(y21)){
+            const [lat1,lng1]=conv(x10[0],y20[0]);
+            const [lat2,lng2]=conv(x11,y21);
+            if(!isNaN(lat1)&&lat1>=-90&&lat1<=90){
+              L.polyline([[lat1,lng1],[lat2,lng2]],{color,weight:1.5}).addTo(lg);
+              coords.push([lat1,lng1],[lat2,lng2]);count++;
+            }
+          }else if(etype==='LWPOLYLINE'&&x10.length>1){
+            const pts=x10.map((x,k)=>{const[la,ln]=conv(x,y20[k]);return[la,ln];}).filter(p=>!isNaN(p[0])&&p[0]>=-90&&p[0]<=90);
+            if(pts.length>1){
+              const closed=(flags&1)===1;
+              closed?L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg):L.polyline(pts,{color,weight:1.5}).addTo(lg);
+              pts.forEach(p=>coords.push(p));count++;
+            }
+          }else if(etype==='CIRCLE'&&radius>0){
+            const[lat,lng]=conv(x10[0],y20[0]);
+            if(!isNaN(lat)&&lat>=-90&&lat<=90){
+              L.circle([lat,lng],{radius,color,weight:1.5,fillOpacity:0.06}).addTo(lg);
+              coords.push([lat,lng]);count++;
+            }
+          }else if((etype==='SPLINE'||etype==='POLYLINE')&&x10.length>1){
+            const pts=x10.map((x,k)=>{const[la,ln]=conv(x,y20[k]);return[la,ln];}).filter(p=>!isNaN(p[0])&&p[0]>=-90&&p[0]<=90);
+            if(pts.length>1){L.polyline(pts,{color,weight:1.5}).addTo(lg);pts.forEach(p=>coords.push(p));count++;}
+          }
+        }
+      }
+    }
+    i++;
+  }
+  if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
+  else showToast('Geometri bulunamadı — koordinat sistemi doğru mu?');
+}
 </script>
 </body>
 </html>
