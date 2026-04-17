@@ -101,7 +101,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
   <span id="coord-display">—</span>
 </div>
 <div id="goto-bar">
-  <input type="text" id="goto-input" placeholder="Enlem, Boylam  (39.123, 35.456)" inputmode="decimal">
+  <input type="text" id="goto-input" placeholder="N  E  (ör: 4567388  388429)" inputmode="decimal">
   <button onclick="gotoCoord()">Git</button>
 </div>
 <div id="rec-indicator"><div id="rec-dot"></div><span id="rec-time">00:00</span></div>
@@ -311,15 +311,26 @@ function toggleGoto(){
 function gotoCoord(){
   const val=document.getElementById('goto-input').value.trim();
   const parts=val.split(/[,\s]+/).map(Number);
-  if(parts.length>=2&&!isNaN(parts[0])&&!isNaN(parts[1])){
-    const lat=parts[0],lng=parts[1];
-    if(lat>=-90&&lat<=90&&lng>=-180&&lng<=180){
-      map.flyTo([lat,lng],17);
-      L.circleMarker([lat,lng],{radius:8,color:'#ff9f43',fillColor:'#ff9f43',fillOpacity:0.9,weight:2}).addTo(map).bindPopup(lat.toFixed(5)+', '+lng.toFixed(5)).openPopup();
-      document.getElementById('goto-bar').style.display='none';
-      document.getElementById('btn-goto').classList.remove('active');
-    }else showToast('Geçersiz koordinat');
-  }else showToast('Format: 39.12345, 35.12345');
+  if(parts.length<2||isNaN(parts[0])||isNaN(parts[1])){showToast('Format: N E  (ör: 4567388 388429)');return;}
+  let lat,lng;
+  const a=parts[0],b=parts[1];
+  // TUREF TM koordinati: N > 4000000, E ~ 200000-800000
+  if(a>90||b>180){
+    // Buyuk sayi = projeksiyon koordinati, TUREF TM30 ile donustur
+    const proj=PROJECTIONS['turef_tm30'];
+    const res=tmToLatLng(b,a,proj); // E=b, N=a
+    lat=res[0];lng=res[1];
+    if(isNaN(lat)||lat<35||lat>43){showToast('Koordinat Turkiye disinda cikmadi — sistem kontrol edin');return;}
+  } else {
+    // Kucuk sayi = cografi koordinat
+    lat=a;lng=b;
+    if(lat<-90||lat>90||lng<-180||lng>180){showToast('Gecersiz koordinat');return;}
+  }
+  map.flyTo([lat,lng],18);
+  L.circleMarker([lat,lng],{radius:8,color:'#ff9f43',fillColor:'#ff9f43',fillOpacity:0.9,weight:2})
+    .addTo(map).bindPopup('N: '+a.toFixed(3)+'<br>E: '+b.toFixed(3)+'<br>'+lat.toFixed(5)+', '+lng.toFixed(5)).openPopup();
+  document.getElementById('goto-bar').style.display='none';
+  document.getElementById('btn-goto').classList.remove('active');
 }
 
 function toggleDistance(){
