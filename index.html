@@ -561,9 +561,9 @@ function closeProjModal() {
 }
 
 function applyProj() {
-  selectedProj = document.getElementById('proj-select').value;
   closeProjModal();
   if (pendingDXFText) parseDXFWithProj(pendingDXFText, pendingDXFName);
+  pendingDXFText = null;
 }
 
 function parseDXFWithProj(text, name) {
