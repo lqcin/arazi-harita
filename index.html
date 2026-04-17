@@ -138,15 +138,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
   <div id="wp-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Haritaya uzun bas → nokta ekle</div></div>
 </div>
 <!-- Projeksiyon seçim modal -->
-<div id="proj-modal" style="position:absolute;inset:0;z-index:510;background:rgba(0,0,0,0.75);display:none;align-items:center;justify-content:center;padding:20px;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;width:100%;max-width:340px;">
-    <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Koordinat Sistemi Seç</div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:12px;">DXF dosyanın Civil 3D'deki koordinat sistemiyle eşleştir</div>
-    <select id="proj-select" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;color:var(--text);outline:none;margin-bottom:14px;"></select>
-    <div style="display:flex;gap:8px;">
-      <button onclick="closeProjModal()" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--surface2);color:var(--text2);">İptal</button>
-      <button onclick="applyProj()" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:#fff;">Uygula</button>
-    </div>
+<div id="proj-modal" style="position:absolute;inset:0;z-index:510;background:rgba(0,0,0,0.82);display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;width:100%;max-width:380px;margin-top:60px;">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Koordinat Sistemi Seç</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:14px;">Civil 3D projenin koordinat sistemiyle eslestir</div>
+    <div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:6px;letter-spacing:0.5px;">TURKIYE (TUREF)</div>
+    <div id="proj-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;"></div>
+    <div style="font-size:11px;color:var(--text2);font-weight:600;margin-bottom:6px;letter-spacing:0.5px;">DIGER</div>
+    <div id="proj-list-other" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;"></div>
+    <button onclick="applyProj()" style="width:100%;padding:11px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:#fff;">Uygula</button>
   </div>
 </div>
 <div id="note-modal">
@@ -504,37 +504,60 @@ function convertCoord(x, y) {
   return tmToLatLng(x, y, proj);
 }
 
+const PROJ_TR = [
+  {k:'turef_tm30', label:'TUREF / TM30', sub:'Istanbul, Antalya, Bati Turkiye'},
+  {k:'turef_tm27', label:'TUREF / TM27', sub:'Trakya, Edirne bolge'},
+  {k:'turef_tm33', label:'TUREF / TM33', sub:'Orta Anadolu, Ankara'},
+  {k:'turef_tm36', label:'TUREF / TM36', sub:'Dogu Anadolu'},
+  {k:'turef_tm39', label:'TUREF / TM39', sub:'Erzurum, Van bolge'},
+  {k:'utm36n_ed50', label:'UTM 36N (ED50)', sub:'Eski projeler, Orta Turkiye'},
+  {k:'utm37n_ed50', label:'UTM 37N (ED50)', sub:'Eski projeler, Dogu Turkiye'},
+  {k:'utm35n_ed50', label:'UTM 35N (ED50)', sub:'Eski projeler, Bati Turkiye'},
+];
+const PROJ_OTHER = [
+  {k:'utm35n_wgs', label:'UTM 35N (WGS84)', sub:''},
+  {k:'utm36n_wgs', label:'UTM 36N (WGS84)', sub:''},
+  {k:'utm37n_wgs', label:'UTM 37N (WGS84)', sub:''},
+  {k:'wgs84', label:'WGS84 / Cografi', sub:'Koordinat sistemi atanmamis'},
+];
+
+function renderProjList() {
+  function makeItem(p) {
+    const sel = p.k === selectedProj;
+    return `<div onclick="selectProj('${p.k}')" id="pitem_${p.k}" style="
+      display:flex;align-items:center;gap:10px;padding:10px 12px;
+      border-radius:8px;cursor:pointer;border:1.5px solid ${sel?'var(--accent)':'var(--border)'};
+      background:${sel?'rgba(74,158,255,0.1)':'transparent'};transition:all 0.15s;">
+      <div style="width:18px;height:18px;border-radius:50%;border:2px solid ${sel?'var(--accent)':'var(--text2)'};
+        background:${sel?'var(--accent)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+        ${sel?'<div style="width:8px;height:8px;border-radius:50%;background:#fff"></div>':''}
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:${sel?'600':'400'};color:${sel?'var(--text)':'var(--text)'};">${p.label}</div>
+        ${p.sub?`<div style="font-size:10px;color:var(--text2)">${p.sub}</div>`:''}
+      </div>
+    </div>`;
+  }
+  document.getElementById('proj-list').innerHTML = PROJ_TR.map(makeItem).join('');
+  document.getElementById('proj-list-other').innerHTML = PROJ_OTHER.map(makeItem).join('');
+}
+
+function selectProj(k) {
+  selectedProj = k;
+  renderProjList();
+}
+
 function openProjModal(dxfText, dxfName) {
   pendingDXFText = dxfText;
   pendingDXFName = dxfName;
   if(selectedProj==='wgs84') selectedProj='turef_tm30';
-  const sel = document.getElementById('proj-select');
-  sel.innerHTML = `
-    <optgroup label="Turkiye (TUREF)">
-      <option value="turef_tm27" ${selectedProj==='turef_tm27'?'selected':''}>TUREF / TM27</option>
-      <option value="turef_tm30" ${selectedProj==='turef_tm30'?'selected':''}>TUREF / TM30 — Istanbul / Antalya</option>
-      <option value="turef_tm33" ${selectedProj==='turef_tm33'?'selected':''}>TUREF / TM33</option>
-      <option value="turef_tm36" ${selectedProj==='turef_tm36'?'selected':''}>TUREF / TM36</option>
-      <option value="turef_tm39" ${selectedProj==='turef_tm39'?'selected':''}>TUREF / TM39</option>
-    </optgroup>
-    <optgroup label="Turkiye (UTM / ED50)">
-      <option value="utm35n_ed50" ${selectedProj==='utm35n_ed50'?'selected':''}>UTM Zone 35N (ED50)</option>
-      <option value="utm36n_ed50" ${selectedProj==='utm36n_ed50'?'selected':''}>UTM Zone 36N (ED50)</option>
-      <option value="utm37n_ed50" ${selectedProj==='utm37n_ed50'?'selected':''}>UTM Zone 37N (ED50)</option>
-    </optgroup>
-    <optgroup label="UTM / WGS84">
-      <option value="utm35n_wgs" ${selectedProj==='utm35n_wgs'?'selected':''}>UTM Zone 35N (WGS84)</option>
-      <option value="utm36n_wgs" ${selectedProj==='utm36n_wgs'?'selected':''}>UTM Zone 36N (WGS84)</option>
-      <option value="utm37n_wgs" ${selectedProj==='utm37n_wgs'?'selected':''}>UTM Zone 37N (WGS84)</option>
-    </optgroup>
-    <optgroup label="Diger">
-      <option value="wgs84" ${selectedProj==='wgs84'?'selected':''}>WGS84 / Cografi</option>
-    </optgroup>`;
-  document.getElementById('proj-modal').classList.add('show');
+  renderProjList();
+  const modal = document.getElementById('proj-modal');
+  modal.style.display='flex';
 }
 
 function closeProjModal() {
-  document.getElementById('proj-modal').classList.remove('show');
+  document.getElementById('proj-modal').style.display='none';
 }
 
 function applyProj() {
