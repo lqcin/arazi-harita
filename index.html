@@ -393,12 +393,28 @@ function initMap(){
   map.setView([39.0,35.0],6);
   map.on('click',e=>{closeMore();onMapClick(e);});
   map.on('mousemove',e=>{ showSnapPreview(e.latlng);document.getElementById('coord-display').textContent=e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5);});
-  let pt=null,pl=null;
+  let pt=null,pl=null,plStart=null;
   map.on('mousedown touchstart',e=>{
     pl=e.latlng||(e.originalEvent.touches?map.mouseEventToLatLng(e.originalEvent.touches[0]):null);
-    pt=setTimeout(()=>{if(pl)openNoteModal(pl);},650);
+    plStart=pl;
+    pt=setTimeout(()=>{
+      if(pl){
+        // Modal açılırken click event'ini engelle
+        map.once('click',ev=>L.DomEvent.stopPropagation(ev));
+        openNoteModal(pl);
+      }
+      pt=null;
+    },650);
   });
-  map.on('mouseup touchend mousemove touchmove',()=>{if(pt){clearTimeout(pt);pt=null;}});
+  map.on('mouseup touchend',()=>{if(pt){clearTimeout(pt);pt=null;}});
+  map.on('touchmove',e=>{
+    // Sadece büyük hareket olursa iptal et (5px üzeri)
+    if(!pt||!plStart) return;
+    const cur=e.originalEvent.touches?map.mouseEventToLatLng(e.originalEvent.touches[0]):null;
+    if(!cur) return;
+    const pxDist=map.latLngToContainerPoint(cur).distanceTo(map.latLngToContainerPoint(plStart));
+    if(pxDist>8){clearTimeout(pt);pt=null;}
+  });
   document.body.addEventListener('dragover',e=>e.preventDefault());
   document.body.addEventListener('drop',e=>{e.preventDefault();handleFile(e.dataTransfer.files[0]);});
   document.getElementById('file-input').addEventListener('change',e=>handleFile(e.target.files[0]));
