@@ -259,7 +259,7 @@ function initMap(){
     const f=e.target.files[0];if(!f)return;
     const r=new FileReader();r.onload=ev=>{pendingPhoto=ev.target.result;const img=document.getElementById('note-photo-preview');img.src=ev.target.result;img.style.display='block';document.getElementById('note-photo-btn').textContent='📷 Fotoğraf değiştir';};r.readAsDataURL(f);
   });
-  autoLoadFile('ANTALYA_BELEK.kml');
+  autoLoadFile('ANTALYA.kmz');
   startCompass();
 }
 
@@ -568,7 +568,11 @@ function handleFile(file){
   else showToast('Desteklenmeyen format');
 }
 function autoLoadFile(filename){
-  fetch(filename).then(r=>{if(!r.ok)throw new Error();return r.text();}).then(text=>{document.getElementById('file-label').textContent=filename;parseKML(text,filename);}).catch(()=>{});
+  const isKMZ=filename.toLowerCase().endsWith('.kmz');
+  fetch(filename).then(r=>{if(!r.ok)throw new Error();return isKMZ?r.arrayBuffer():r.text();}).then(data=>{
+    document.getElementById('file-label').textContent=filename;
+    if(isKMZ)parseKMZ(data,filename);else parseKML(data,filename);
+  }).catch(()=>{});
 }
 
 // ── KML ───────────────────────────────────────────────────
