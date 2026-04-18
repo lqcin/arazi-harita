@@ -179,18 +179,24 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 <div id="toolbar">
   <div class="tool-btn" id="btn-gps" onclick="toggleGPS()"><span class="icon">📍</span><span>GPS</span></div>
   <div class="tool-btn" id="btn-rec" onclick="toggleRecord()"><span class="icon">⏺</span><span>Rota</span></div>
-  <div class="tool-btn" id="btn-wp" onclick="togglePanel('wp-panel','btn-wp')"><span class="icon">📌</span><span>Nokta</span></div>
   <div class="tool-btn" id="btn-dist" onclick="toggleDistance()"><span class="icon">📏</span><span>Ölç</span></div>
   <div class="tool-btn" id="btn-search" onclick="toggleSearch()"><span class="icon">🔍</span><span>Ara</span></div>
   <div class="tool-btn" id="btn-maptype" onclick="togglePanel('maptype-panel','btn-maptype')"><span class="icon">🛰</span><span>Harita</span></div>
-  <div class="tool-btn" id="btn-layers" onclick="togglePanel('layer-panel','btn-layers')"><span class="icon">🗂</span><span>Katman</span></div>
   <div class="tool-btn" id="btn-goto" onclick="toggleGoto()"><span class="icon">🎯</span><span>Git</span></div>
-  <div class="tool-btn" id="btn-share" onclick="shareLocation()"><span class="icon">🔗</span><span>Paylaş</span></div>
-  <div class="tool-btn" id="btn-stakeout" onclick="openStakeoutModal()"><span class="icon">🎯</span><span id="btn-stakeout-lbl">Konum Bul</span></div>
-  <div class="tool-btn" id="btn-meas-hist" onclick="togglePanel('meas-hist-panel','btn-meas-hist')"><span class="icon">📊</span><span id="btn-meas-hist-lbl">Geçmiş</span></div>
-  <div class="tool-btn" id="btn-settings" onclick="togglePanel('settings-panel','btn-settings')"><span class="icon">⚙️</span><span id="btn-settings-lbl">Ayarlar</span></div>
-  <div class="tool-btn" id="btn-projects" onclick="togglePanel('projects-panel','btn-projects')"><span class="icon">📁</span><span id="btn-projects-lbl">Projeler</span></div>
-  <div class="tool-btn" id="btn-fit" onclick="fitToData()"><span class="icon">⊡</span><span>Sığdır</span></div>
+  <div class="tool-btn" id="btn-stakeout" onclick="openStakeoutModal()"><span class="icon">🔭</span><span id="btn-stakeout-lbl">Konum Bul</span></div>
+  <div class="tool-btn" id="btn-more" onclick="toggleMore()"><span class="icon">⋯</span><span id="btn-more-lbl">Daha Fazla</span></div>
+</div>
+<!-- Daha Fazla menüsü -->
+<div id="more-menu" style="position:absolute;bottom:82px;left:10px;right:10px;z-index:250;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;display:none;">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+    <div class="tool-btn" id="btn-wp" onclick="togglePanel('wp-panel','btn-wp');closeMore()"><span class="icon">📌</span><span>Nokta</span></div>
+    <div class="tool-btn" id="btn-layers" onclick="togglePanel('layer-panel','btn-layers');closeMore()"><span class="icon">🗂</span><span>Katman</span></div>
+    <div class="tool-btn" id="btn-share" onclick="shareLocation();closeMore()"><span class="icon">🔗</span><span>Paylaş</span></div>
+    <div class="tool-btn" id="btn-meas-hist" onclick="togglePanel('meas-hist-panel','btn-meas-hist');closeMore()"><span class="icon">📊</span><span id="btn-meas-hist-lbl">Geçmiş</span></div>
+    <div class="tool-btn" id="btn-settings" onclick="togglePanel('settings-panel','btn-settings');closeMore()"><span class="icon">⚙️</span><span id="btn-settings-lbl">Ayarlar</span></div>
+    <div class="tool-btn" id="btn-projects" onclick="togglePanel('projects-panel','btn-projects');closeMore()"><span class="icon">📁</span><span id="btn-projects-lbl">Projeler</span></div>
+    <div class="tool-btn" id="btn-fit" onclick="fitToData();closeMore()"><span class="icon">⊡</span><span>Sığdır</span></div>
+  </div>
 </div>
 <!-- Projeler paneli -->
 <div class="panel" id="projects-panel">
@@ -385,7 +391,7 @@ function initMap(){
   baseLayers.dark=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:20});
   baseLayers.osm.addTo(map);
   map.setView([39.0,35.0],6);
-  map.on('click',onMapClick);
+  map.on('click',e=>{closeMore();onMapClick(e);});
   map.on('mousemove',e=>{ showSnapPreview(e.latlng);document.getElementById('coord-display').textContent=e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5);});
   let pt=null,pl=null;
   map.on('mousedown touchstart',e=>{
@@ -767,8 +773,32 @@ function togglePanel(panelId,btnId){
   closeAllPanels();if(!open){panel.style.display='block';document.getElementById(btnId).classList.add('active');}
 }
 function closeAllPanels(exceptDist){
-  ['layer-panel','maptype-panel','wp-panel'].forEach(id=>document.getElementById(id).style.display='none');
-  ['btn-layers','btn-maptype','btn-wp'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  const panels=['layer-panel','maptype-panel','wp-panel','meas-hist-panel','settings-panel','projects-panel','obj-panel'];
+  const btns=['btn-layers','btn-maptype','btn-wp','btn-meas-hist','btn-settings','btn-projects'];
+  panels.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none';});
+  btns.forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
+  closeMore();
+  // search bar
+  const sb=document.getElementById('search-bar');if(sb)sb.style.display='none';
+  const sr=document.getElementById('search-results');if(sr)sr.style.display='none';
+  document.getElementById('btn-search')?.classList.remove('active');
+  // goto bar
+  const gb=document.getElementById('goto-bar');if(gb)gb.style.display='none';
+  document.getElementById('btn-goto')?.classList.remove('active');
+}
+
+function toggleMore(){
+  const menu=document.getElementById('more-menu');
+  const open=menu.style.display==='block';
+  if(!open) closeAllPanels();
+  menu.style.display=open?'none':'block';
+  document.getElementById('btn-more').classList.toggle('active',!open);
+}
+
+function closeMore(){
+  const menu=document.getElementById('more-menu');
+  if(menu) menu.style.display='none';
+  document.getElementById('btn-more')?.classList.remove('active');
 }
 
 // ── File handling ─────────────────────────────────────────
@@ -921,7 +951,7 @@ const T = {
     zoomIn:'Yakınlaş', zoomOut:'Uzaklaş',
     finish:'Bitir', autoNight:'Gece modu otomatik',
     exportKML:'KML İndir', measLine:'Mesafe', measArea:'Alan',
-    projects:'Projeler', projFixed:'Sabit Projeler', projUser:'Yüklenen Projeler',
+    more:'Daha Fazla', projects:'Projeler', projFixed:'Sabit Projeler', projUser:'Yüklenen Projeler',
     projNone:'Henüz proje yok', projAdd:'+ Proje Ekle', projActive:'Aktif',
     projDelete:'Sil', projSwitch:'Geçiş yapıldı', projName:'Proje adı',
     projSave:'Kaydet', projCurrent:'Mevcut haritayı kaydet',
@@ -971,7 +1001,7 @@ const T = {
     zoomIn:'Zoom In', zoomOut:'Zoom Out',
     finish:'Finish', autoNight:'Auto night mode',
     exportKML:'Export KML', measLine:'Distance', measArea:'Area',
-    projects:'Projects', projFixed:'Fixed Projects', projUser:'Loaded Projects',
+    more:'More', projects:'Projects', projFixed:'Fixed Projects', projUser:'Loaded Projects',
     projNone:'No projects yet', projAdd:'+ Add Project', projActive:'Active',
     projDelete:'Delete', projSwitch:'Switched', projName:'Project name',
     projSave:'Save', projCurrent:'Save current map',
@@ -1588,6 +1618,7 @@ const _origApplyLang=applyLang;
 window.applyLang=function(){
   _origApplyLang();
   const sl=document.getElementById('btn-stakeout-lbl');if(sl)sl.textContent=t('stakeout');
+  const bml=document.getElementById('btn-more-lbl');if(bml)bml.textContent=currentLang==='tr'?'Daha Fazla':'More';
   const mhl=document.getElementById('btn-meas-hist-lbl');if(mhl)mhl.textContent=t('measHistory');
   const mht=document.getElementById('meas-hist-title');if(mht)mht.textContent=t('measHistory');
   const mhc=document.getElementById('meas-hist-clear');if(mhc)mhc.textContent=t('measHistClear');
