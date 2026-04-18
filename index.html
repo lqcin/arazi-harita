@@ -807,7 +807,7 @@ function parseKML(text,name){
     if(ptEl){const p=ptEl.textContent.trim().split(/[\s,]+/);if(p.length>=2){const lat=parseFloat(p[1]),lng=parseFloat(p[0]);if(!isNaN(lat)&&!isNaN(lng)){L.circleMarker([lat,lng],{radius:5,color,fillColor:color,fillOpacity:0.9}).addTo(lg).bindPopup(pname||'Nokta');coords.push([lat,lng]);kmlObjects.push({name:pname||'Nokta',ll:L.latLng(lat,lng),pts:[[lat,lng]],type:'point'});count++;}}}
   });
   if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
-  else showToast('KML\'de geometri bulunamadı');
+  else showToast(t('kmlEmpty'));
 }
 function kmlPts(text){return text.trim().split(/\s+/).map(c=>{const p=c.split(',');if(p.length>=2){const lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))return[lat,lng];}return null;}).filter(Boolean);}
 async function parseKMZ(buffer,name){
@@ -895,7 +895,7 @@ const T = {
     invalidCoord:'Geçersiz koordinat', outOfTurkey:'Koordinat Türkiye dışında çıktı',
     loadError:'Sabit dosya yüklenemedi', unsupported:'Desteklenmeyen format',
     dwgHint:"DWG: Civil 3D'den DXF veya KMZ export edin",
-    kmlEmpty:'KML'de geometri bulunamadı', kmzError:'KMZ açılamadı',
+    kmlEmpty:'KML dosyasinda geometri bulunamadi', kmzError:'KMZ açılamadı',
     objLoaded:' obje yüklendi', geoNotFound:'Geometri bulunamadı',
     installTitle:'Ana Ekrana Ekle', installSub:'Uygulama gibi kullan, offline çalışır',
     installBtn:'Ekle', selectCoordSys:'Koordinat Sistemi Seç',
@@ -1085,8 +1085,7 @@ function guessDXFProjection(lines) {
 
 function openDxfRefModal(dxfText, dxfName) {
   pendingDXFForRef = {text:dxfText, name:dxfName, offset:{dx:0,dy:0}};
-  const lines = dxfText.split('
-').map(l=>l.trim());
+  const lines = dxfText.split('\n').map(l=>l.trim());
   const guess = guessDXFProjection(lines);
 
   document.getElementById('dxf-ref-title').textContent = t('dxfNoCoord');
