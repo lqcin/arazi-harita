@@ -162,6 +162,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
   </div>
   <div id="wp-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Haritaya uzun bas → nokta ekle</div></div>
 </div>
+<!-- Obje koordinat paneli -->
+<div id="obj-panel" style="position:absolute;left:10px;right:10px;bottom:82px;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:none;max-height:340px;overflow-y:auto;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <div id="obj-panel-title" style="font-size:13px;font-weight:600;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+    <span onclick="document.getElementById('obj-panel').style.display='none'" style="color:var(--danger);font-size:18px;cursor:pointer;flex-shrink:0;margin-left:8px;">×</span>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+    <button onclick="copyObjCoords()" style="flex:1;min-width:80px;padding:7px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--accent);">📋 Kopyala</button>
+    <button onclick="downloadObjCoords()" style="flex:1;min-width:80px;padding:7px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--accent2);">💾 TXT İndir</button>
+    <button onclick="addObjToMeasure()" style="flex:1;min-width:80px;padding:7px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--warn);">📏 Ölçüme Ekle</button>
+  </div>
+  <div id="obj-coord-list" style="font-family:monospace;font-size:11px;color:var(--text2);line-height:1.8;"></div>
+</div>
 <!-- Projeksiyon modal -->
 <div id="proj-modal" style="position:absolute;inset:0;z-index:510;background:rgba(0,0,0,0.82);display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;width:100%;max-width:380px;margin-top:60px;">
@@ -585,9 +598,9 @@ function parseKML(text,name){
     const lineEl=pm.querySelector('LineString coordinates');
     const polyEl=pm.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
     const ptEl=pm.querySelector('Point coordinates');
-    if(lineEl){const pts=kmlPts(lineEl.textContent);if(pts.length){L.polyline(pts,{color,weight:2}).addTo(lg).bindPopup(pname||'Çizgi');pts.forEach(p=>coords.push(p));if(pname)kmlObjects.push({name:pname,ll:L.latLng(pts[0])});count++;}}
-    if(polyEl){const pts=kmlPts(polyEl.textContent);if(pts.length){L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg).bindPopup(pname||'Alan');pts.forEach(p=>coords.push(p));if(pname)kmlObjects.push({name:pname,ll:L.latLng(pts[0])});count++;}}
-    if(ptEl){const p=ptEl.textContent.trim().split(/[\s,]+/);if(p.length>=2){const lat=parseFloat(p[1]),lng=parseFloat(p[0]);if(!isNaN(lat)&&!isNaN(lng)){L.circleMarker([lat,lng],{radius:5,color,fillColor:color,fillOpacity:0.9}).addTo(lg).bindPopup(pname||'Nokta');coords.push([lat,lng]);if(pname)kmlObjects.push({name:pname,ll:L.latLng(lat,lng)});count++;}}}
+    if(lineEl){const pts=kmlPts(lineEl.textContent);if(pts.length){const pl=L.polyline(pts,{color,weight:2}).addTo(lg);pl.bindPopup(pname||'Çizgi');pl.on('click',e=>{L.DomEvent.stopPropagation(e);showObjPanel({name:pname||'Çizgi',pts,type:'line'});});pts.forEach(p=>coords.push(p));kmlObjects.push({name:pname||'Çizgi',ll:L.latLng(pts[0]),pts,type:'line'});count++;}}
+    if(polyEl){const pts=kmlPts(polyEl.textContent);if(pts.length){const pg=L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg);pg.bindPopup(pname||'Alan');pg.on('click',e=>{L.DomEvent.stopPropagation(e);showObjPanel({name:pname||'Alan',pts,type:'poly'});});pts.forEach(p=>coords.push(p));kmlObjects.push({name:pname||'Alan',ll:L.latLng(pts[0]),pts,type:'poly'});count++;}}
+    if(ptEl){const p=ptEl.textContent.trim().split(/[\s,]+/);if(p.length>=2){const lat=parseFloat(p[1]),lng=parseFloat(p[0]);if(!isNaN(lat)&&!isNaN(lng)){L.circleMarker([lat,lng],{radius:5,color,fillColor:color,fillOpacity:0.9}).addTo(lg).bindPopup(pname||'Nokta');coords.push([lat,lng]);kmlObjects.push({name:pname||'Nokta',ll:L.latLng(lat,lng),pts:[[lat,lng]],type:'point'});count++;}}}
   });
   if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
   else showToast('KML\'de geometri bulunamadı');
@@ -647,6 +660,95 @@ function parseDXFWithProj(text,name){
   }
   if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
   else showToast('Geometri bulunamadı — koordinat sistemi doğru mu?');
+}
+
+// ── Obje koordinat paneli ─────────────────────────────────
+let currentObjData = null;
+
+function latLngToTM30(lat, lng) {
+  const proj = PROJECTIONS['turef_tm30'];
+  const {lon0,fe,fn,k,a,f} = proj;
+  const b = a*(1-f), e2 = 1-(b*b)/(a*a);
+  const phi = lat*Math.PI/180, lam = lng*Math.PI/180, lam0 = lon0*Math.PI/180;
+  const N = a/Math.sqrt(1-e2*Math.sin(phi)**2);
+  const T = Math.tan(phi)**2, C = e2/(1-e2)*Math.cos(phi)**2, A = Math.cos(phi)*(lam-lam0);
+  const M = a*((1-e2/4-3*e2**2/64-5*e2**3/256)*phi-(3*e2/8+3*e2**2/32+45*e2**3/1024)*Math.sin(2*phi)+(15*e2**2/256+45*e2**3/1024)*Math.sin(4*phi)-(35*e2**3/3072)*Math.sin(6*phi));
+  const E = fe + k*N*(A+(1-T+C)*A**3/6+(5-18*T+T**2+72*C-58*e2/(1-e2))*A**5/120);
+  const Nout = fn + k*(M+N*Math.tan(phi)*(A**2/2+(5-T+9*C+4*C**2)*A**4/24+(61-58*T+T**2+600*C-330*e2/(1-e2))*A**6/720));
+  return [Math.round(Nout*1000)/1000, Math.round(E*1000)/1000];
+}
+
+function showObjPanel(obj) {
+  currentObjData = obj;
+  document.getElementById('obj-panel-title').textContent = obj.name + ' — ' + obj.pts.length + ' nokta';
+  const list = document.getElementById('obj-coord-list');
+  const proj = PROJECTIONS['turef_tm30'];
+  let html = '<div style="display:grid;grid-template-columns:1.2rem 1fr 1fr;gap:2px 8px;color:var(--text2);font-size:10px;margin-bottom:6px;"><span>#</span><span>N (TM30)</span><span>E (TM30)</span></div>';
+  obj.pts.forEach((p,i) => {
+    const [N,E] = latLngToTM30(p[0],p[1]);
+    html += `<div style="display:grid;grid-template-columns:1.2rem 1fr 1fr;gap:2px 8px;padding:3px 0;border-bottom:1px solid var(--border);">
+      <span style="color:var(--text2)">${i+1}</span>
+      <span style="color:var(--text)">${N.toFixed(3)}</span>
+      <span style="color:var(--text)">${E.toFixed(3)}</span>
+    </div>`;
+  });
+  list.innerHTML = html;
+  document.getElementById('obj-panel').style.display = 'block';
+}
+
+function getObjCoordsText() {
+  if(!currentObjData) return '';
+  let txt = currentObjData.name + '\n';
+  txt += 'No\tN (TM30)\tE (TM30)\tEnlem\tBoylam\n';
+  currentObjData.pts.forEach((p,i) => {
+    const [N,E] = latLngToTM30(p[0],p[1]);
+    txt += `${i+1}\t${N.toFixed(3)}\t${E.toFixed(3)}\t${p[0].toFixed(6)}\t${p[1].toFixed(6)}\n`;
+  });
+  return txt;
+}
+
+function copyObjCoords() {
+  const txt = getObjCoordsText();
+  navigator.clipboard.writeText(txt).then(()=>showToast('Koordinatlar kopyalandı')).catch(()=>showToast('Kopyalanamadı'));
+}
+
+function downloadObjCoords() {
+  const txt = getObjCoordsText();
+  const blob = new Blob([txt],{type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (currentObjData.name||'koordinatlar').replace(/[^a-zA-Z0-9_-]/g,'_')+'.txt';
+  a.click();
+  showToast('TXT indirildi');
+}
+
+function addObjToMeasure() {
+  if(!currentObjData||!currentObjData.pts.length) return;
+  if(!distModeActive) { toggleDistance(); }
+  clearDistance();
+  const pts = currentObjData.pts;
+  pts.forEach(p => {
+    const ll = L.latLng(p[0],p[1]);
+    distPoints.push(ll);
+    distMarkers.push(L.circleMarker(ll,{radius:5,color:'#fff',fillColor:'#ff9f43',fillOpacity:1,weight:2}).addTo(map));
+  });
+  if(distSubMode==='line' && pts.length>=2) {
+    if(distLine) map.removeLayer(distLine);
+    distLine = L.polyline(distPoints,{color:'#ff9f43',weight:2,dashArray:'6,4'}).addTo(map);
+    let d=0; for(let i=1;i<distPoints.length;i++) d+=distPoints[i-1].distanceTo(distPoints[i]);
+    document.getElementById('dist-value').textContent = d>=1000?(d/1000).toFixed(3)+' km':d.toFixed(1)+' m';
+    distPoints=[];
+  } else if(distSubMode==='area' && pts.length>=3) {
+    if(distPolygon) map.removeLayer(distPolygon);
+    distPolygon = L.polygon(distPoints,{color:'#ff9f43',weight:2,fillOpacity:0.1}).addTo(map);
+    const areaM2 = calcArea(distPoints);
+    const donum = areaM2/1000;
+    document.getElementById('dist-value').textContent = areaM2>=10000?(areaM2/10000).toFixed(4)+' ha':areaM2.toFixed(1)+' m²';
+    document.getElementById('dist-hint').textContent = donum.toFixed(2)+' dönüm';
+    distPoints=[];
+  }
+  document.getElementById('obj-panel').style.display='none';
+  showToast(currentObjData.pts.length+' nokta ölçüme eklendi');
 }
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
