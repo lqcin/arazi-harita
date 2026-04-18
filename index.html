@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0f0f1a">
 <title>Arazi Harita</title>
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -102,6 +103,43 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 </style>
 </head>
 <body>
+<!-- Install banner -->
+<div id="install-banner" style="position:absolute;bottom:90px;left:10px;right:10px;z-index:300;background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);padding:12px 14px;display:none;align-items:center;gap:10px;">
+  <div style="flex:1">
+    <div style="font-size:13px;font-weight:600;" id="install-title">Ana Ekrana Ekle</div>
+    <div style="font-size:11px;color:var(--text2);" id="install-sub">Uygulama gibi kullan, offline çalışır</div>
+  </div>
+  <button onclick="doInstall()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;" id="install-ok-btn">Ekle</button>
+  <span onclick="document.getElementById('install-banner').style.display='none'" style="color:var(--text2);cursor:pointer;font-size:18px;">×</span>
+</div>
+<!-- DXF koordinat tahmini modal -->
+<div id="dxf-ref-modal" style="position:absolute;inset:0;z-index:520;background:rgba(0,0,0,0.82);display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;width:100%;max-width:380px;margin-top:40px;">
+    <div id="dxf-ref-title" style="font-size:15px;font-weight:600;margin-bottom:6px;">Koordinat Sistemi Bulunamadı</div>
+    <div id="dxf-ref-sub" style="font-size:11px;color:var(--text2);margin-bottom:14px;line-height:1.5;"></div>
+    <div id="dxf-auto-suggest" style="background:rgba(74,158,255,0.1);border:1px solid var(--accent);border-radius:8px;padding:10px;margin-bottom:12px;display:none;">
+      <div style="font-size:11px;color:var(--accent);font-weight:600;margin-bottom:4px;" id="dxf-suggest-label">Otomatik Tahmin</div>
+      <div style="font-size:13px;color:var(--text);" id="dxf-suggest-val"></div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:8px;" id="dxf-ref-hint">Veya referans nokta gir:</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div>
+        <div style="font-size:10px;color:var(--text2);margin-bottom:3px;" id="dxf-dxf-label">DXF X (Doğu)</div>
+        <input id="dxf-ref-x" type="number" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:12px;color:var(--text);outline:none;" placeholder="388429.786">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--text2);margin-bottom:3px;" id="dxf-dxf-label2">DXF Y (Kuzey)</div>
+        <input id="dxf-ref-y" type="number" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:12px;color:var(--text);outline:none;" placeholder="4567388.605">
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:3px;" id="dxf-real-label">Gerçek Koordinat (WGS84 Enlem, Boylam)</div>
+    <input id="dxf-ref-real" type="text" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:12px;color:var(--text);outline:none;margin-bottom:14px;" placeholder="36.94780, 30.89476">
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeDxfRefModal()" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--surface2);color:var(--text2);" id="dxf-cancel-btn">İptal</button>
+      <button onclick="applyDxfRef()" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:#fff;" id="dxf-apply-btn">Uygula</button>
+    </div>
+  </div>
+</div>
 <div id="loading"><div style="font-size:44px">🗺️</div><div style="font-size:18px;font-weight:700">Arazi Harita</div><div class="spinner"></div></div>
 <div id="map"></div>
 <div id="topbar">
@@ -112,6 +150,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
     <span id="gps-acc"></span>
     <div id="compass"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/><polygon id="compass-needle" points="12,3 14,12 12,10 10,12" fill="#ff6b6b"/><polygon points="12,21 14,12 12,14 10,12" fill="rgba(255,255,255,0.3)"/></svg></div>
   </div>
+  <button id="lang-btn" onclick="toggleLang()" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:3px 8px;font-size:11px;color:var(--text2);cursor:pointer;flex-shrink:0;">EN</button>
   <span id="coord-display">—</span>
 </div>
 <div id="goto-bar">
@@ -129,8 +168,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
     <button class="dmode-btn" id="dmode-area" onclick="setDistMode('area')">📐 Alan</button>
   </div>
   <div class="dtitle" id="dist-hint">Haritada iki noktaya dokun</div>
-  <span id="dist-value">—</span>
-  <span id="dist-clear" onclick="clearDistance()">✕ Temizle</span>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
+    <span id="dist-value">—</span>
+    <div style="display:flex;gap:8px;">
+      <span id="dist-finish" onclick="finishArea()" style="color:var(--accent2);font-size:12px;cursor:pointer;display:none;">✓ Bitir</span>
+      <span id="dist-clear" onclick="clearDistance()" style="color:var(--danger);font-size:12px;cursor:pointer;">✕ Temizle</span>
+    </div>
+  </div>
 </div>
 <div id="toolbar">
   <div class="tool-btn" id="btn-gps" onclick="toggleGPS()"><span class="icon">📍</span><span>GPS</span></div>
@@ -142,7 +186,38 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
   <div class="tool-btn" id="btn-layers" onclick="togglePanel('layer-panel','btn-layers')"><span class="icon">🗂</span><span>Katman</span></div>
   <div class="tool-btn" id="btn-goto" onclick="toggleGoto()"><span class="icon">🎯</span><span>Git</span></div>
   <div class="tool-btn" id="btn-share" onclick="shareLocation()"><span class="icon">🔗</span><span>Paylaş</span></div>
+  <div class="tool-btn" id="btn-stakeout" onclick="openStakeoutModal()"><span class="icon">🎯</span><span id="btn-stakeout-lbl">Konum Bul</span></div>
+  <div class="tool-btn" id="btn-meas-hist" onclick="togglePanel('meas-hist-panel','btn-meas-hist')"><span class="icon">📊</span><span id="btn-meas-hist-lbl">Geçmiş</span></div>
+  <div class="tool-btn" id="btn-settings" onclick="togglePanel('settings-panel','btn-settings')"><span class="icon">⚙️</span><span id="btn-settings-lbl">Ayarlar</span></div>
+  <div class="tool-btn" id="btn-projects" onclick="togglePanel('projects-panel','btn-projects')"><span class="icon">📁</span><span id="btn-projects-lbl">Projeler</span></div>
   <div class="tool-btn" id="btn-fit" onclick="fitToData()"><span class="icon">⊡</span><span>Sığdır</span></div>
+</div>
+<!-- Projeler paneli -->
+<div class="panel" id="projects-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <h3 id="proj-panel-title">Projeler</h3>
+    <button onclick="saveCurrentProject()" style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--accent);background:transparent;color:var(--accent);" id="proj-save-btn">Kaydet</button>
+  </div>
+  <!-- Sabit projeler -->
+  <div style="font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.5px;margin-bottom:6px;" id="proj-fixed-title">SABİT PROJELER</div>
+  <div id="proj-fixed-list" style="margin-bottom:12px;"></div>
+  <!-- Kullanıcı projeleri -->
+  <div style="font-size:10px;color:var(--text2);font-weight:600;letter-spacing:0.5px;margin-bottom:6px;" id="proj-user-title">YÜKLENENLERİM</div>
+  <div id="proj-user-list"></div>
+</div>
+<!-- Proje kaydet modal -->
+<div id="proj-save-modal" style="position:absolute;inset:0;z-index:520;background:rgba(0,0,0,0.82);display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;width:100%;max-width:340px;">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px;" id="proj-save-modal-title">Projeyi Kaydet</div>
+    <input id="proj-name-input" type="text" placeholder="Proje adı (ör: Belek Sitesi)"
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:13px;color:var(--text);outline:none;margin-bottom:12px;">
+    <div style="display:flex;gap:8px;">
+      <button onclick="document.getElementById('proj-save-modal').style.display='none'"
+        style="flex:1;padding:9px;border-radius:8px;font-size:13px;cursor:pointer;border:none;background:var(--surface2);color:var(--text2);" id="proj-modal-cancel">İptal</button>
+      <button onclick="confirmSaveProject()"
+        style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:#fff;" id="proj-modal-save">Kaydet</button>
+    </div>
+  </div>
 </div>
 <div class="panel" id="layer-panel"><h3>Katmanlar</h3><div id="layer-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">Henüz katman yok</div></div></div>
 <div id="maptype-panel">
@@ -174,6 +249,58 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
     <button onclick="addObjToMeasure()" style="flex:1;min-width:80px;padding:7px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--warn);">📏 Ölçüme Ekle</button>
   </div>
   <div id="obj-coord-list" style="font-family:monospace;font-size:11px;color:var(--text2);line-height:1.8;"></div>
+</div>
+<!-- Stakeout modal -->
+<div id="stakeout-modal" style="position:absolute;inset:0;z-index:510;background:rgba(0,0,0,0.82);display:none;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;width:100%;max-width:360px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:15px;font-weight:600;" id="stk-title">Konum Bul</div>
+      <span onclick="closeStakeout()" style="color:var(--text2);cursor:pointer;font-size:20px;">×</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px;" id="stk-hint">Hedef N E koordinatı gir</div>
+    <input id="stk-input" type="text" placeholder="4567388  388429" inputmode="decimal"
+      style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:13px;color:var(--text);outline:none;margin-bottom:10px;">
+    <button onclick="startStakeout()" id="stk-start-btn"
+      style="width:100%;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:#fff;margin-bottom:10px;">Başlat</button>
+    <div id="stk-display" style="display:none;text-align:center;padding:10px 0;">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:4px;" id="stk-dist-label">Kalan mesafe</div>
+      <div style="font-size:36px;font-weight:700;color:var(--accent2);margin-bottom:4px;" id="stk-dist">—</div>
+      <div style="font-size:11px;color:var(--text2);" id="stk-dir"></div>
+      <div id="stk-arrow" style="font-size:48px;margin:8px 0;transition:transform 0.3s;">↑</div>
+      <div style="width:100%;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-top:8px;">
+        <div id="stk-bar" style="height:100%;background:var(--accent2);border-radius:4px;width:0%;transition:width 0.5s;"></div>
+      </div>
+    </div>
+    <button onclick="stopStakeout()" id="stk-stop-btn" style="display:none;width:100%;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:var(--danger);color:#fff;">Durdur</button>
+  </div>
+</div>
+<!-- Ölçüm geçmişi paneli -->
+<div class="panel" id="meas-hist-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+    <h3 id="meas-hist-title">Ölçüm Geçmişi</h3>
+    <span onclick="clearMeasHistory()" style="font-size:11px;color:var(--danger);cursor:pointer;" id="meas-hist-clear">Temizle</span>
+  </div>
+  <div id="meas-hist-list"><div style="color:var(--text2);font-size:12px;text-align:center;padding:12px;" id="meas-hist-empty">Henüz ölçüm yok</div></div>
+  <button onclick="exportMeasKML()" style="width:100%;margin-top:10px;padding:8px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--accent2);" id="meas-export-btn">📤 KML İndir</button>
+</div>
+<!-- Snap hassasiyet + ayarlar paneli -->
+<div class="panel" id="settings-panel">
+  <h3 id="settings-title">Ayarlar</h3>
+  <div style="margin-bottom:12px;">
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px;" id="snap-sens-label">Snap Hassasiyeti: <span id="snap-val">25</span>px</div>
+    <input type="range" id="snap-range" min="10" max="60" value="25" step="5"
+      oninput="snapRadius=parseInt(this.value);document.getElementById('snap-val').textContent=this.value;"
+      style="width:100%;">
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border);">
+    <span style="font-size:12px;color:var(--text);" id="auto-night-label">Gece modu otomatik</span>
+    <div id="auto-night-toggle" onclick="toggleAutoNight()" class="layer-toggle" style="flex-shrink:0;"></div>
+  </div>
+</div>
+<!-- Zoom butonları -->
+<div style="position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:100;display:flex;flex-direction:column;gap:6px;">
+  <button onclick="map.zoomIn()" style="width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
+  <button onclick="map.zoomOut()" style="width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">−</button>
 </div>
 <!-- Projeksiyon modal -->
 <div id="proj-modal" style="position:absolute;inset:0;z-index:510;background:rgba(0,0,0,0.82);display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
@@ -212,6 +339,8 @@ let recording=false,recTrack=[],recPolyline=null,recStart=null,recTimer=null;
 let waypoints=[],pendingWP=null,pendingPhoto=null;
 let colorIdx=0,compassActive=false,compassWatcher=null;
 let kmlObjects=[];
+let allVertices=[]; // tüm KML köşe noktaları snap için
+let snapMarker=null; // snap önizleme marker
 const COLORS=['#4a9eff','#00d4aa','#ff9f43','#ff6b6b','#a29bfe','#fd79a8','#55efc4','#74b9ff'];
 
 const PROJECTIONS={
@@ -257,7 +386,7 @@ function initMap(){
   baseLayers.osm.addTo(map);
   map.setView([39.0,35.0],6);
   map.on('click',onMapClick);
-  map.on('mousemove',e=>{document.getElementById('coord-display').textContent=e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5);});
+  map.on('mousemove',e=>{ showSnapPreview(e.latlng);document.getElementById('coord-display').textContent=e.latlng.lat.toFixed(5)+', '+e.latlng.lng.toFixed(5);});
   let pt=null,pl=null;
   map.on('mousedown touchstart',e=>{
     pl=e.latlng||(e.originalEvent.touches?map.mouseEventToLatLng(e.originalEvent.touches[0]):null);
@@ -274,6 +403,8 @@ function initMap(){
   });
   autoLoadFile('ANTALYA.kmz');
   startCompass();
+  applyLang();
+  document.getElementById('lang-btn').textContent = currentLang==='tr'?'EN':'TR';
 }
 
 // ── Compass ───────────────────────────────────────────────
@@ -504,6 +635,42 @@ function setDistMode(m){
   document.getElementById('dmode-area').classList.toggle('active',m==='area');
   document.getElementById('dist-hint').textContent=m==='line'?'Haritada iki noktaya dokun':'En az 3 noktaya dokun, son noktaya çift dokun';
 }
+// ── Snap to vertex ───────────────────────────────────────
+function findSnapVertex(latlng) {
+  if(!allVertices.length) return null;
+  // Zoom'a göre snap mesafesi: ekranda ~25px karşılığı metre
+  const zoom = map.getZoom();
+  const snapMeters = 25 * 40075016 * Math.cos(latlng.lat * Math.PI/180) / (256 * Math.pow(2, zoom));
+  let closest = null, minDist = snapMeters;
+  for(let v of allVertices) {
+    const d = latlng.distanceTo(v);
+    if(d < minDist) { minDist = d; closest = v; }
+  }
+  return closest;
+}
+
+function showSnapPreview(latlng) {
+  if(!distModeActive) { removeSnapPreview(); return; }
+  const snap = findSnapVertex(latlng);
+  if(snap) {
+    if(!snapMarker) {
+      snapMarker = L.circleMarker(snap, {
+        radius: 10, color: '#00d4aa', fillColor: '#00d4aa',
+        fillOpacity: 0.3, weight: 2.5, className: ''
+      }).addTo(map);
+    } else {
+      snapMarker.setLatLng(snap);
+    }
+    snapMarker.setStyle({opacity:1, fillOpacity:0.3});
+  } else {
+    removeSnapPreview();
+  }
+}
+
+function removeSnapPreview() {
+  if(snapMarker) { map.removeLayer(snapMarker); snapMarker = null; }
+}
+
 function onMapClick(e){
   if(!distModeActive&&gpsActive&&gpsMarker){
     const d=gpsMarker.getLatLng().distanceTo(e.latlng);
@@ -512,26 +679,61 @@ function onMapClick(e){
     return;
   }
   if(!distModeActive)return;
-  distPoints.push(e.latlng);
-  distMarkers.push(L.circleMarker(e.latlng,{radius:6,color:'#fff',fillColor:'#ff9f43',fillOpacity:1,weight:2}).addTo(map));
+  // Snap kontrolü
+  const snapPt = findSnapVertex(e.latlng);
+  const usePt = snapPt || e.latlng;
+  const isSnapped = !!snapPt;
+  distPoints.push(usePt);
+  const markerColor = isSnapped ? '#00d4aa' : '#ff9f43';
+  const m = L.circleMarker(usePt,{radius:6,color:'#fff',fillColor:markerColor,fillOpacity:1,weight:2}).addTo(map);
+  if(isSnapped) {
+    m.bindTooltip('📐 Köşeye snap', {permanent:false, direction:'top', className:''}).openTooltip();
+    setTimeout(()=>m.closeTooltip(), 1500);
+  }
+  distMarkers.push(m);
   if(distSubMode==='line'){
     if(distPoints.length===2){
       if(distLine)map.removeLayer(distLine);
       distLine=L.polyline(distPoints,{color:'#ff9f43',weight:2,dashArray:'6,4'}).addTo(map);
       const d=distPoints[0].distanceTo(distPoints[1]);
-      document.getElementById('dist-value').textContent=d>=1000?(d/1000).toFixed(3)+' km':d.toFixed(1)+' m';
+      const dVal=d>=1000?(d/1000).toFixed(3):d.toFixed(1);
+      const dUnit=d>=1000?'km':'m';
+      document.getElementById('dist-value').textContent=dVal+' '+dUnit;
+      saveMeasurement('line',dVal,dUnit,[distPoints[0],distPoints[1]]);
       distPoints=[];
     }else document.getElementById('dist-value').textContent='İkinci noktayı seç...';
   } else {
+    // Alan modu: açık polyline çiz, Bitir butonuyla kapat
+    if(distLine) map.removeLayer(distLine);
+    distLine = L.polyline(distPoints,{color:'#ff9f43',weight:2,dashArray:'4,3'}).addTo(map);
+    // Son noktadan ilk noktaya kesikli çizgi göster
+    if(distPoints.length>=2){
+      if(distPolygon) map.removeLayer(distPolygon);
+      // Önizleme: hafif poligon
+      distPolygon=L.polygon(distPoints,{color:'#ff9f43',weight:0,fillColor:'#ff9f43',fillOpacity:0.06}).addTo(map);
+    }
     if(distPoints.length>=3){
-      if(distPolygon)map.removeLayer(distPolygon);
-      distPolygon=L.polygon(distPoints,{color:'#ff9f43',weight:2,fillOpacity:0.1}).addTo(map);
-      const areaM2=L.GeometryUtil?L.GeometryUtil.geodesicArea(distPoints):calcArea(distPoints);
+      document.getElementById('dist-finish').style.display='inline';
+      const areaM2=calcArea(distPoints);
       const donum=areaM2/1000;
       document.getElementById('dist-value').textContent=areaM2>=10000?(areaM2/10000).toFixed(4)+' ha':areaM2.toFixed(1)+' m²';
-      document.getElementById('dist-hint').textContent=donum.toFixed(2)+' dönüm — devam et veya temizle';
+      document.getElementById('dist-hint').textContent=donum.toFixed(2)+' dönüm — nokta ekle veya Bitir';
+    } else {
+      document.getElementById('dist-value').textContent=distPoints.length+'. nokta eklendi';
     }
   }
+}
+function finishArea(){
+  if(distPoints.length<3){showToast('En az 3 nokta gerekli');return;}
+  if(distLine){map.removeLayer(distLine);distLine=null;}
+  if(distPolygon)map.removeLayer(distPolygon);
+  distPolygon=L.polygon(distPoints,{color:'#ff9f43',weight:2,fillOpacity:0.12}).addTo(map);
+  const areaM2=calcArea(distPoints);
+  const donum=areaM2/1000;
+  document.getElementById('dist-value').textContent=areaM2>=10000?(areaM2/10000).toFixed(4)+' ha':areaM2.toFixed(1)+' m²';
+  document.getElementById('dist-hint').textContent=donum.toFixed(2)+' dönüm — alan kapatıldı';
+  document.getElementById('dist-finish').style.display='none';
+  distPoints=[];
 }
 function calcArea(pts){
   let a=0;const n=pts.length;
@@ -544,6 +746,8 @@ function clearDistance(){
   if(distPolygon){map.removeLayer(distPolygon);distPolygon=null;}
   document.getElementById('dist-value').textContent='—';
   document.getElementById('dist-hint').textContent=distSubMode==='line'?'Haritada iki noktaya dokun':'En az 3 noktaya dokun';
+  document.getElementById('dist-finish').style.display='none';
+  removeSnapPreview();
 }
 
 // ── Layers ────────────────────────────────────────────────
@@ -576,7 +780,7 @@ function handleFile(file){
   const r=new FileReader();
   if(name.endsWith('.kml')){r.onload=e=>parseKML(e.target.result,file.name);r.readAsText(file);}
   else if(name.endsWith('.kmz')){r.onload=e=>parseKMZ(e.target.result,file.name);r.readAsArrayBuffer(file);}
-  else if(name.endsWith('.dxf')){r.onload=e=>openProjModal(e.target.result,file.name);r.readAsText(file);}
+  else if(name.endsWith('.dxf')){r.onload=e=>openDxfRefModal(e.target.result,file.name);r.readAsText(file);}
   else if(name.endsWith('.dwg'))showToast('DWG: Civil 3D\'den DXF veya KMZ export edin');
   else showToast('Desteklenmeyen format');
 }
@@ -598,8 +802,8 @@ function parseKML(text,name){
     const lineEl=pm.querySelector('LineString coordinates');
     const polyEl=pm.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
     const ptEl=pm.querySelector('Point coordinates');
-    if(lineEl){const pts=kmlPts(lineEl.textContent);if(pts.length){const pl=L.polyline(pts,{color,weight:2}).addTo(lg);pl.bindPopup(pname||'Çizgi');pl.on('click',e=>{L.DomEvent.stopPropagation(e);showObjPanel({name:pname||'Çizgi',pts,type:'line'});});pts.forEach(p=>coords.push(p));kmlObjects.push({name:pname||'Çizgi',ll:L.latLng(pts[0]),pts,type:'line'});count++;}}
-    if(polyEl){const pts=kmlPts(polyEl.textContent);if(pts.length){const pg=L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg);pg.bindPopup(pname||'Alan');pg.on('click',e=>{L.DomEvent.stopPropagation(e);showObjPanel({name:pname||'Alan',pts,type:'poly'});});pts.forEach(p=>coords.push(p));kmlObjects.push({name:pname||'Alan',ll:L.latLng(pts[0]),pts,type:'poly'});count++;}}
+    if(lineEl){const pts=kmlPts(lineEl.textContent);if(pts.length){const pl=L.polyline(pts,{color,weight:2}).addTo(lg);pl.bindPopup(pname||'Çizgi');pl.on('click',e=>{L.DomEvent.stopPropagation(e);showObjPanel({name:pname||'Çizgi',pts,type:'line'});});pts.forEach(p=>coords.push(p));kmlObjects.push({name:pname||'Çizgi',ll:L.latLng(pts[0]),pts,type:'line'});pts.forEach(p=>allVertices.push(L.latLng(p[0],p[1])));count++;}}
+    if(polyEl){const pts=kmlPts(polyEl.textContent);if(pts.length){const pg=L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg);pg.bindPopup(pname||'Alan');pg.on('click',e=>{L.DomEvent.stopPropagation(e);showObjPanel({name:pname||'Alan',pts,type:'poly'});});pts.forEach(p=>coords.push(p));kmlObjects.push({name:pname||'Alan',ll:L.latLng(pts[0]),pts,type:'poly'});pts.forEach(p=>allVertices.push(L.latLng(p[0],p[1])));count++;}}
     if(ptEl){const p=ptEl.textContent.trim().split(/[\s,]+/);if(p.length>=2){const lat=parseFloat(p[1]),lng=parseFloat(p[0]);if(!isNaN(lat)&&!isNaN(lng)){L.circleMarker([lat,lng],{radius:5,color,fillColor:color,fillOpacity:0.9}).addTo(lg).bindPopup(pname||'Nokta');coords.push([lat,lng]);kmlObjects.push({name:pname||'Nokta',ll:L.latLng(lat,lng),pts:[[lat,lng]],type:'point'});count++;}}}
   });
   if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
@@ -624,7 +828,14 @@ function tmToLatLng(E,N,proj){
   const lng=(lon0*Math.PI/180)+(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1**2+8*e2/(1-e2)+24*T1**2)*D**5/120)/Math.cos(phi1);
   return[lat*180/Math.PI,lng*180/Math.PI];
 }
-function convertCoord(x,y){const proj=PROJECTIONS[selectedProj];if(!proj||proj.type==='geo')return[y,x];return tmToLatLng(x,y,proj);}
+function convertCoord(x,y,offset){
+  const proj=PROJECTIONS[selectedProj];
+  let res;
+  if(!proj||proj.type==='geo') res=[y,x];
+  else res=tmToLatLng(x,y,proj);
+  if(offset&&offset.dlat){res[0]+=offset.dlat;res[1]+=offset.dlng;}
+  return res;
+}
 
 function renderProjList(){
   function makeItem(p){const sel=p.k===selectedProj;return`<div onclick="selectProj('${p.k}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;border:1.5px solid ${sel?'var(--accent)':'var(--border)'};background:${sel?'rgba(74,158,255,0.1)':'transparent'};"><div style="width:18px;height:18px;border-radius:50%;border:2px solid ${sel?'var(--accent)':'var(--text2)'};background:${sel?'var(--accent)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">${sel?'<div style="width:8px;height:8px;border-radius:50%;background:#fff"></div>':''}</div><div><div style="font-size:13px;color:var(--text);">${p.label}</div>${p.sub?`<div style="font-size:10px;color:var(--text2)">${p.sub}</div>`:''}</div></div>`;}
@@ -637,7 +848,7 @@ function closeProjModal(){document.getElementById('proj-modal').style.display='n
 function applyProj(){closeProjModal();if(pendingDXFText)parseDXFWithProj(pendingDXFText,pendingDXFName);pendingDXFText=null;}
 
 // ── DXF ───────────────────────────────────────────────────
-function parseDXFWithProj(text,name){
+function parseDXFWithProj(text,name,offset){
   const lines=text.split('\n').map(l=>l.trim());const lg=L.layerGroup();const coords=[];let count=0;
   const color=COLORS[colorIdx++%COLORS.length];let i=0;
   while(i<lines.length-1){
@@ -647,7 +858,7 @@ function parseDXFWithProj(text,name){
         const x10=[],y20=[];let x11=NaN,y21=NaN,flags=0,radius=0;let j=i+2;
         while(j<Math.min(i+500,lines.length-1)){const code=parseInt(lines[j]);const raw=lines[j+1]||'';const val=parseFloat(raw);if(code===0&&j>i+2)break;if(code===10)x10.push(val);else if(code===20)y20.push(val);else if(code===11)x11=val;else if(code===21)y21=val;else if(code===70)flags=parseInt(raw);else if(code===40)radius=val;j+=2;}
         if(x10.length>0&&y20.length>0){
-          const conv=(x,y)=>convertCoord(x,y);
+          const conv=(x,y)=>convertCoord(x,y,offset);
           if(etype==='POINT'){const[lat,lng]=conv(x10[0],y20[0]);if(!isNaN(lat)&&lat>=-90&&lat<=90){L.circleMarker([lat,lng],{radius:4,color,fillColor:color,fillOpacity:0.9}).addTo(lg);coords.push([lat,lng]);count++;}}
           else if(etype==='LINE'&&!isNaN(x11)&&!isNaN(y21)){const[la1,ln1]=conv(x10[0],y20[0]);const[la2,ln2]=conv(x11,y21);if(!isNaN(la1)&&la1>=-90&&la1<=90){L.polyline([[la1,ln1],[la2,ln2]],{color,weight:1.5}).addTo(lg);coords.push([la1,ln1],[la2,ln2]);count++;}}
           else if(etype==='LWPOLYLINE'&&x10.length>1){const pts=x10.map((x,k)=>{const[la,ln]=conv(x,y20[k]);return[la,ln];}).filter(p=>!isNaN(p[0])&&p[0]>=-90&&p[0]<=90);if(pts.length>1){const closed=(flags&1)===1;closed?L.polygon(pts,{color,weight:2,fillOpacity:0.1}).addTo(lg):L.polyline(pts,{color,weight:1.5}).addTo(lg);pts.forEach(p=>coords.push(p));count++;}}
@@ -661,6 +872,279 @@ function parseDXFWithProj(text,name){
   if(coords.length){allBounds=L.latLngBounds(coords);map.fitBounds(allBounds.pad(0.1));addLayer(name,lg,color,count+' obj');showToast(count+' obje yüklendi');}
   else showToast('Geometri bulunamadı — koordinat sistemi doğru mu?');
 }
+
+// ── Dil sistemi ───────────────────────────────────────────
+let currentLang = localStorage.getItem('lang') || 'tr';
+const T = {
+  tr: {
+    upload:'Yükle', gps:'GPS', route:'Rota', point:'Nokta', measure:'Ölç',
+    search:'Ara', map:'Harita', layer:'Katman', goto:'Git', share:'Paylaş', fit:'Sığdır',
+    distance:'Mesafe', area:'Alan', copy:'📋 Kopyala', download:'💾 TXT İndir',
+    addMeasure:'📏 Ölçüme Ekle', exportCoords:'📋 Dışa Aktar', gpxDownload:'💾 GPX İndir',
+    gpsOff:'GPS kapatıldı', gpsNoSupport:'GPS desteklenmiyor', gpsPerm:'GPS izni gerekli',
+    gpsError:'GPS alınamadı', loading:'Yükleniyor...', noFile:'Henüz dosya yüklenmedi',
+    noWaypoint:'İşaretli nokta yok', noData:'Dışa aktarılacak veri yok',
+    gpxDone:'GPX indirildi', coordsCopied:'Koordinatlar kopyalandı',
+    coordsDownloaded:'TXT indirildi', pointAdded:'" eklendi',
+    routeStarted:'Rota kaydı başladı', routeSaved:'Kaydedildi',
+    routeShort:'Rota çok kısa', routeStopped:'Rota kaydı durdu',
+    tapTwo:'İki noktaya dokun', tapThree:'En az 3 noktaya dokun',
+    locationShared:'Konum linki kopyalandı', openGPSFirst:'Önce GPS açın',
+    addedToMeasure:' nokta ölçüme eklendi', searchPlaceholder:'Obje ara...',
+    coordPlaceholder:'N  E  (ör: 4567388  388429)',
+    invalidCoord:'Geçersiz koordinat', outOfTurkey:'Koordinat Türkiye dışında çıktı',
+    loadError:'Sabit dosya yüklenemedi', unsupported:'Desteklenmeyen format',
+    dwgHint:"DWG: Civil 3D'den DXF veya KMZ export edin",
+    kmlEmpty:'KML'de geometri bulunamadı', kmzError:'KMZ açılamadı',
+    objLoaded:' obje yüklendi', geoNotFound:'Geometri bulunamadı',
+    installTitle:'Ana Ekrana Ekle', installSub:'Uygulama gibi kullan, offline çalışır',
+    installBtn:'Ekle', selectCoordSys:'Koordinat Sistemi Seç',
+    coordSysHint:'Civil 3D projenin koordinat sistemiyle eşleştir',
+    trTitle:'TÜRKİYE (TUREF)', otherTitle:'DİĞER', applyBtn:'Uygula',
+    cancelBtn:'İptal', addPointTitle:'Nokta ekle', namePlaceholder:'İsim (ör: Röper A)',
+    notePlaceholder:'Not (isteğe bağlı)', addPhoto:'📷 Fotoğraf Ekle', changePhoto:'📷 Fotoğraf değiştir',
+    saveBtn:'Kaydet', noLayer:'Henüz katman yok', noPoints:'Haritaya uzun bas → nokta ekle',
+    markedPoints:'İşaretli Noktalar', longPress:'(haritaya uzun bas)',
+    distFrom:'Konumunuzdan uzaklık', dontum:'dönüm',
+    dxfNoCoord:'Koordinat sistemi atanmamış',
+    dxfAutoSuggest:'Otomatik Tahmin', dxfRefHint:'Veya referans nokta gir:',
+    dxfDxfX:'DXF X (Doğu)', dxfDxfY:'DXF Y (Kuzey)',
+    dxfRealCoord:'Gerçek Koordinat (WGS84 Enlem, Boylam)',
+    dxfAutoDesc:'Koordinat aralığına göre tahmin edilen sistem:',
+    dxfRefApplied:'Referans noktası uygulandı',
+    stakeout:'Konum Bul', stakeoutHint:'Hedef koordinat gir', stakeoutTarget:'Hedef',
+    stakeoutDist:'Kalan mesafe', stakeoutReached:'Hedefe ulaşıldı!', stakeoutStart:'Başlat',
+    stakeoutStop:'Durdur', stakeoutNoGPS:'GPS aktif değil',
+    measHistory:'Ölçüm Geçmişi', measHistClear:'Temizle', measHistEmpty:'Henüz ölçüm yok',
+    measSaved:'Ölçüm kaydedildi', snapSens:'Snap Hassasiyeti',
+    projMenu:'Projeler', projAdd:'Yeni Proje', projSwitch:'Proje değiştir',
+    zoomIn:'Yakınlaş', zoomOut:'Uzaklaş',
+    finish:'Bitir', autoNight:'Gece modu otomatik',
+    exportKML:'KML İndir', measLine:'Mesafe', measArea:'Alan',
+    projects:'Projeler', projFixed:'Sabit Projeler', projUser:'Yüklenen Projeler',
+    projNone:'Henüz proje yok', projAdd:'+ Proje Ekle', projActive:'Aktif',
+    projDelete:'Sil', projSwitch:'Geçiş yapıldı', projName:'Proje adı',
+    projSave:'Kaydet', projCurrent:'Mevcut haritayı kaydet',
+  },
+  en: {
+    upload:'Load', gps:'GPS', route:'Track', point:'Marker', measure:'Measure',
+    search:'Search', map:'Map', layer:'Layers', goto:'Go', share:'Share', fit:'Fit',
+    distance:'Distance', area:'Area', copy:'📋 Copy', download:'💾 TXT Download',
+    addMeasure:'📏 Add to Measure', exportCoords:'📋 Export', gpxDownload:'💾 GPX',
+    gpsOff:'GPS off', gpsNoSupport:'GPS not supported', gpsPerm:'GPS permission required',
+    gpsError:'GPS unavailable', loading:'Loading...', noFile:'No file loaded',
+    noWaypoint:'No waypoints', noData:'No data to export',
+    gpxDone:'GPX downloaded', coordsCopied:'Coordinates copied',
+    coordsDownloaded:'TXT downloaded', pointAdded:' added',
+    routeStarted:'Track recording started', routeSaved:'Saved',
+    routeShort:'Track too short', routeStopped:'Track stopped',
+    tapTwo:'Tap two points', tapThree:'Tap at least 3 points',
+    locationShared:'Location link copied', openGPSFirst:'Open GPS first',
+    addedToMeasure:' points added to measure', searchPlaceholder:'Search objects...',
+    coordPlaceholder:'N  E  (e.g. 4567388  388429)',
+    invalidCoord:'Invalid coordinate', outOfTurkey:'Coordinate outside Turkey',
+    loadError:'Could not load file', unsupported:'Unsupported format',
+    dwgHint:'DWG: Export as DXF or KMZ from Civil 3D',
+    kmlEmpty:'No geometry in KML', kmzError:'Could not open KMZ',
+    objLoaded:' objects loaded', geoNotFound:'No geometry found',
+    installTitle:'Add to Home Screen', installSub:'Works like an app, offline capable',
+    installBtn:'Add', selectCoordSys:'Select Coordinate System',
+    coordSysHint:'Match with your Civil 3D project coordinate system',
+    trTitle:'TURKEY (TUREF)', otherTitle:'OTHER', applyBtn:'Apply',
+    cancelBtn:'Cancel', addPointTitle:'Add point', namePlaceholder:'Name (e.g. Point A)',
+    notePlaceholder:'Note (optional)', addPhoto:'📷 Add Photo', changePhoto:'📷 Change Photo',
+    saveBtn:'Save', noLayer:'No layers yet', noPoints:'Long press map → add point',
+    markedPoints:'Marked Points', longPress:'(long press map)',
+    distFrom:'Distance from your location', dontum:'decare',
+    dxfNoCoord:'No coordinate system assigned',
+    dxfAutoSuggest:'Auto Detected', dxfRefHint:'Or enter reference point:',
+    dxfDxfX:'DXF X (Easting)', dxfDxfY:'DXF Y (Northing)',
+    dxfRealCoord:'Real Coordinate (WGS84 Lat, Lng)',
+    dxfAutoDesc:'Estimated system based on coordinate range:',
+    dxfRefApplied:'Reference point applied',
+    stakeout:'Stakeout', stakeoutHint:'Enter target coordinate', stakeoutTarget:'Target',
+    stakeoutDist:'Distance to target', stakeoutReached:'Target reached!', stakeoutStart:'Start',
+    stakeoutStop:'Stop', stakeoutNoGPS:'GPS not active',
+    measHistory:'Measure History', measHistClear:'Clear', measHistEmpty:'No measurements yet',
+    measSaved:'Measurement saved', snapSens:'Snap Sensitivity',
+    projMenu:'Projects', projAdd:'New Project', projSwitch:'Switch project',
+    zoomIn:'Zoom In', zoomOut:'Zoom Out',
+    finish:'Finish', autoNight:'Auto night mode',
+    exportKML:'Export KML', measLine:'Distance', measArea:'Area',
+    projects:'Projects', projFixed:'Fixed Projects', projUser:'Loaded Projects',
+    projNone:'No projects yet', projAdd:'+ Add Project', projActive:'Active',
+    projDelete:'Delete', projSwitch:'Switched', projName:'Project name',
+    projSave:'Save', projCurrent:'Save current map',
+  }
+};
+
+function t(key) { return (T[currentLang]||T.tr)[key] || key; }
+
+function toggleLang() {
+  currentLang = currentLang === 'tr' ? 'en' : 'tr';
+  localStorage.setItem('lang', currentLang);
+  document.getElementById('lang-btn').textContent = currentLang === 'tr' ? 'EN' : 'TR';
+  applyLang();
+}
+
+function applyLang() {
+  // toolbar buttons
+  const btnMap = {
+    'btn-gps':'gps','btn-rec':'route','btn-wp':'point','btn-dist':'measure',
+    'btn-search':'search','btn-maptype':'map','btn-layers':'layer',
+    'btn-goto':'goto','btn-share':'share','btn-fit':'fit'
+  };
+  Object.entries(btnMap).forEach(([id,key])=>{
+    const btn=document.getElementById(id);
+    if(btn) btn.querySelector('span:last-child').textContent=t(key);
+  });
+  // upload btn
+  const ub=document.getElementById('upload-btn');
+  if(ub) ub.childNodes[ub.childNodes.length-1].textContent=' '+t('upload');
+  // dist panel
+  const dl=document.getElementById('dmode-line'); if(dl) dl.textContent='📏 '+t('distance');
+  const da=document.getElementById('dmode-area'); if(da) da.textContent='📐 '+t('area');
+  // install banner
+  const it=document.getElementById('install-title'); if(it) it.textContent=t('installTitle');
+  const is=document.getElementById('install-sub'); if(is) is.textContent=t('installSub');
+  const ib=document.getElementById('install-ok-btn'); if(ib) ib.textContent=t('installBtn');
+  // search placeholder
+  const si=document.getElementById('search-input'); if(si) si.placeholder=t('searchPlaceholder');
+  // goto placeholder
+  const gi=document.getElementById('goto-input'); if(gi) gi.placeholder=t('coordPlaceholder');
+  // proj modal
+  const pt=document.querySelector('#proj-modal [style*="font-size:15px"]'); if(pt) pt.textContent=t('selectCoordSys');
+  // wp panel
+  const wp=document.getElementById('wp-list'); if(wp&&wp.querySelector('div')) {
+    const empty=wp.querySelector('[style*="text-align:center"]'); if(empty) empty.textContent=t('noPoints');
+  }
+  // layer list
+  const ll=document.getElementById('layer-list'); if(ll){
+    const empty=ll.querySelector('[style*="text-align:center"]'); if(empty) empty.textContent=t('noLayer');
+  }
+  // dxf ref modal labels
+  const drh=document.getElementById('dxf-ref-hint'); if(drh) drh.textContent=t('dxfRefHint');
+  const ddx=document.getElementById('dxf-dxf-label'); if(ddx) ddx.textContent=t('dxfDxfX');
+  const ddy=document.getElementById('dxf-dxf-label2'); if(ddy) ddy.textContent=t('dxfDxfY');
+  const drl=document.getElementById('dxf-real-label'); if(drl) drl.textContent=t('dxfRealCoord');
+  const dcb=document.getElementById('dxf-cancel-btn'); if(dcb) dcb.textContent=t('cancelBtn');
+  const dab=document.getElementById('dxf-apply-btn'); if(dab) dab.textContent=t('applyBtn');
+}
+
+// ── PWA Install ───────────────────────────────────────────
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstall = e;
+  document.getElementById('install-banner').style.display = 'flex';
+});
+function doInstall() {
+  if(!deferredInstall) return;
+  deferredInstall.prompt();
+  deferredInstall.userChoice.then(()=>{ document.getElementById('install-banner').style.display='none'; deferredInstall=null; });
+}
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+
+// ── DXF koordinat sistemi tahmini ────────────────────────
+let pendingDXFForRef = null;
+
+function guessDXFProjection(lines) {
+  // X ve Y değerlerini topla
+  const xs=[], ys=[];
+  for(let i=0;i<Math.min(lines.length-1,2000);i++) {
+    const code=parseInt(lines[i]);
+    const val=parseFloat(lines[i+1]);
+    if(!isNaN(val)) {
+      if(code===10) xs.push(val);
+      else if(code===20) ys.push(val);
+    }
+  }
+  if(!xs.length) return null;
+  const avgX=xs.reduce((a,b)=>a+b,0)/xs.length;
+  const avgY=ys.reduce((a,b)=>a+b,0)/ys.length;
+
+  // Coğrafi koordinat kontrolü
+  if(avgX>=-180&&avgX<=180&&avgY>=-90&&avgY<=90) return {key:'wgs84',conf:'high',avgX,avgY};
+
+  // TM zone tahmini — E değeri 200000-800000 arası, N değeri 4000000-5000000
+  if(avgY>3500000&&avgY<5500000&&avgX>100000&&avgX<900000) {
+    // Merkez meridyeni tahmini
+    let key='turef_tm30', name='TUREF / TM30';
+    if(avgX<350000){key='turef_tm27';name='TUREF / TM27';}
+    else if(avgX>650000){key='turef_tm33';name='TUREF / TM33';}
+    return {key,name,conf:'medium',avgX,avgY};
+  }
+  // UTM — E değeri 100000-900000, N 3500000-5000000
+  if(avgY>3500000&&avgY<5500000&&avgX>100000&&avgX<1000000) {
+    return {key:'utm36n_ed50',name:'UTM 36N (ED50)',conf:'low',avgX,avgY};
+  }
+  return null;
+}
+
+function openDxfRefModal(dxfText, dxfName) {
+  pendingDXFForRef = {text:dxfText, name:dxfName, offset:{dx:0,dy:0}};
+  const lines = dxfText.split('
+').map(l=>l.trim());
+  const guess = guessDXFProjection(lines);
+
+  document.getElementById('dxf-ref-title').textContent = t('dxfNoCoord');
+  document.getElementById('dxf-ref-sub').textContent = dxfName;
+
+  const suggestEl = document.getElementById('dxf-auto-suggest');
+  const suggestLabel = document.getElementById('dxf-suggest-label');
+  const suggestVal = document.getElementById('dxf-suggest-val');
+
+  if(guess && guess.key !== 'wgs84') {
+    suggestEl.style.display = 'block';
+    suggestLabel.textContent = t('dxfAutoSuggest');
+    const projName = PROJECTIONS[guess.key]?.name || guess.key;
+    suggestVal.innerHTML = projName + '<br><span style="font-size:10px;color:var(--text2)">Ort. X: '+Math.round(guess.avgX)+', Y: '+Math.round(guess.avgY)+'</span>';
+    suggestVal.dataset.key = guess.key;
+    // Otomatik sistem seç
+    selectedProj = guess.key;
+  } else if(guess && guess.key === 'wgs84') {
+    // Zaten coğrafi, direkt işle
+    closeDxfRefModal();
+    openProjModal(dxfText, dxfName);
+    return;
+  } else {
+    suggestEl.style.display = 'none';
+  }
+
+  document.getElementById('dxf-ref-modal').style.display = 'flex';
+}
+
+function closeDxfRefModal() {
+  document.getElementById('dxf-ref-modal').style.display = 'none';
+}
+
+function applyDxfRef() {
+  if(!pendingDXFForRef) return;
+  const dxfX = parseFloat(document.getElementById('dxf-ref-x').value);
+  const dxfY = parseFloat(document.getElementById('dxf-ref-y').value);
+  const realVal = document.getElementById('dxf-ref-real').value.trim();
+
+  // Referans nokta girilmişse offset hesapla
+  if(!isNaN(dxfX) && !isNaN(dxfY) && realVal) {
+    const parts = realVal.split(/[,\s]+/).map(Number);
+    if(parts.length>=2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      const realLat=parts[0], realLng=parts[1];
+      // Seçili projeksiyonla DXF koordinatını dönüştür
+      const proj = PROJECTIONS[selectedProj];
+      if(proj && proj.type==='tm') {
+        const [convLat,convLng] = tmToLatLng(dxfX, dxfY, proj);
+        pendingDXFForRef.offset = {dlat: realLat-convLat, dlng: realLng-convLng};
+      }
+    }
+  }
+  closeDxfRefModal();
+  parseDXFWithProj(pendingDXFForRef.text, pendingDXFForRef.name, pendingDXFForRef.offset);
+  pendingDXFForRef = null;
+  showToast(t('dxfRefApplied'));
+}
+
 
 // ── Obje koordinat paneli ─────────────────────────────────
 let currentObjData = null;
@@ -750,6 +1234,384 @@ function addObjToMeasure() {
   document.getElementById('obj-panel').style.display='none';
   showToast(currentObjData.pts.length+' nokta ölçüme eklendi');
 }
+
+// ── Çoklu Proje Sistemi ───────────────────────────────────
+// Sabit projeler — GitHub'daki dosyalar
+const FIXED_PROJECTS = [
+  { id:'antalya', name:'Antalya — Belek', file:'ANTALYA.kmz', type:'kmz' },
+  // Buraya yeni sabit proje eklenebilir:
+  // { id:'istanbul', name:'İstanbul Projesi', file:'ISTANBUL.kmz', type:'kmz' },
+];
+
+let userProjects = JSON.parse(localStorage.getItem('userProjects')||'[]');
+let activeProjectId = localStorage.getItem('activeProject')||'antalya';
+
+function renderProjectsPanel() {
+  // Sabit projeler
+  const fixedList = document.getElementById('proj-fixed-list');
+  fixedList.innerHTML = FIXED_PROJECTS.map(p => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+      background:${activeProjectId===p.id?'rgba(74,158,255,0.1)':'transparent'};
+      border:1px solid ${activeProjectId===p.id?'var(--accent)':'var(--border)'};margin-bottom:6px;cursor:pointer;"
+      onclick="switchToFixedProject('${p.id}')">
+      <span style="font-size:16px;">📁</span>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:600;color:var(--text);">${p.name}</div>
+        <div style="font-size:10px;color:var(--text2);">${p.file}</div>
+      </div>
+      ${activeProjectId===p.id?`<span style="font-size:10px;color:var(--accent);font-weight:600;">${t('projActive')}</span>`:''}
+    </div>`).join('');
+
+  // Kullanıcı projeleri
+  const userList = document.getElementById('proj-user-list');
+  if(!userProjects.length) {
+    userList.innerHTML = `<div style="color:var(--text2);font-size:12px;text-align:center;padding:10px;">${t('projNone')}</div>`;
+    return;
+  }
+  userList.innerHTML = userProjects.map(p => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+      background:${activeProjectId===p.id?'rgba(0,212,170,0.1)':'transparent'};
+      border:1px solid ${activeProjectId===p.id?'var(--accent2)':'var(--border)'};margin-bottom:6px;">
+      <span style="font-size:16px;cursor:pointer;" onclick="switchToUserProject('${p.id}')">📂</span>
+      <div style="flex:1;cursor:pointer;" onclick="switchToUserProject('${p.id}')">
+        <div style="font-size:12px;font-weight:600;color:var(--text);">${p.name}</div>
+        <div style="font-size:10px;color:var(--text2);">${new Date(p.date).toLocaleDateString('tr')}</div>
+      </div>
+      ${activeProjectId===p.id?`<span style="font-size:10px;color:var(--accent2);font-weight:600;">${t('projActive')}</span>`:''}
+      <span onclick="deleteUserProject('${p.id}')" style="color:var(--danger);cursor:pointer;font-size:16px;flex-shrink:0;">×</span>
+    </div>`).join('');
+}
+
+function switchToFixedProject(id) {
+  const proj = FIXED_PROJECTS.find(p=>p.id===id);
+  if(!proj) return;
+  activeProjectId = id;
+  localStorage.setItem('activeProject', id);
+  // Mevcut katmanları temizle
+  clearAllLayers();
+  autoLoadFile(proj.file);
+  closeAllPanels();
+  showToast(t('projSwitch')+': '+proj.name);
+  renderProjectsPanel();
+}
+
+function switchToUserProject(id) {
+  const proj = userProjects.find(p=>p.id===id);
+  if(!proj||!proj.data) return;
+  activeProjectId = id;
+  localStorage.setItem('activeProject', id);
+  clearAllLayers();
+  if(proj.type==='kml') parseKML(proj.data, proj.name);
+  else if(proj.type==='kmz') {
+    // Base64'ten ArrayBuffer'a çevir
+    const bin = atob(proj.data);
+    const buf = new ArrayBuffer(bin.length);
+    const view = new Uint8Array(buf);
+    for(let i=0;i<bin.length;i++) view[i]=bin.charCodeAt(i);
+    parseKMZ(buf, proj.name);
+  }
+  closeAllPanels();
+  showToast(t('projSwitch')+': '+proj.name);
+  renderProjectsPanel();
+}
+
+function deleteUserProject(id) {
+  userProjects = userProjects.filter(p=>p.id!==id);
+  localStorage.setItem('userProjects', JSON.stringify(userProjects));
+  if(activeProjectId===id) activeProjectId='';
+  renderProjectsPanel();
+}
+
+function clearAllLayers() {
+  Object.values(layerGroups).forEach(lg=>map.removeLayer(lg.layer));
+  layerGroups={};allBounds=null;kmlObjects=[];allVertices=[];
+  renderLayerList();
+  document.getElementById('file-label').textContent='DXF · KML · KMZ';
+}
+
+function saveCurrentProject() {
+  const fname = document.getElementById('file-label').textContent;
+  if(fname==='DXF · KML · KMZ'||!Object.keys(layerGroups).length) {
+    showToast('Önce bir dosya yükleyin');return;
+  }
+  document.getElementById('proj-name-input').value = fname.replace(/\.[^.]+$/,'');
+  document.getElementById('proj-save-modal').style.display = 'flex';
+}
+
+function confirmSaveProject() {
+  const name = document.getElementById('proj-name-input').value.trim();
+  if(!name){showToast(t('projName')+' girin');return;}
+  // Mevcut yüklü dosyayı kaydet — handleFile'dan gelen son dosyayı saklıyoruz
+  if(!window._lastLoadedData){showToast('Kaydedilecek veri yok');return;}
+  const proj = {
+    id: 'u'+Date.now(), name, type: window._lastLoadedType||'kml',
+    data: window._lastLoadedData, date: Date.now()
+  };
+  userProjects.unshift(proj);
+  if(userProjects.length>20) userProjects.pop();
+  // 5MB limit kontrolü
+  try {
+    localStorage.setItem('userProjects', JSON.stringify(userProjects));
+  } catch(e) {
+    userProjects.shift();
+    showToast('Depolama dolu — eski projeyi silin');
+    return;
+  }
+  activeProjectId = proj.id;
+  localStorage.setItem('activeProject', proj.id);
+  document.getElementById('proj-save-modal').style.display = 'none';
+  renderProjectsPanel();
+  showToast('"'+name+'" kaydedildi');
+}
+
+// handleFile'da son yüklenen dosyayı sakla
+const _origHandleFile = handleFile;
+window.handleFile = function(file) {
+  if(!file) return;
+  const name = file.name.toLowerCase();
+  const r = new FileReader();
+  if(name.endsWith('.kml')) {
+    r.onload = e => { window._lastLoadedData=e.target.result; window._lastLoadedType='kml'; };
+    r.readAsText(file);
+  } else if(name.endsWith('.kmz')) {
+    r.onload = e => {
+      // ArrayBuffer'ı base64'e çevir
+      const bytes = new Uint8Array(e.target.result);
+      let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+      window._lastLoadedData=btoa(bin); window._lastLoadedType='kmz';
+    };
+    r.readAsArrayBuffer(file);
+  }
+  _origHandleFile(file);
+};
+
+// applyLang genişletmesi — proje paneli için
+const _origApplyLang2 = window.applyLang;
+window.applyLang = function() {
+  _origApplyLang2();
+  const pbl=document.getElementById('btn-projects-lbl'); if(pbl) pbl.textContent=t('projects');
+  const ppt=document.getElementById('proj-panel-title'); if(ppt) ppt.textContent=t('projects');
+  const pft=document.getElementById('proj-fixed-title'); if(pft) pft.textContent=t('projFixed').toUpperCase();
+  const put=document.getElementById('proj-user-title'); if(put) put.textContent=t('projUser').toUpperCase();
+  const psb=document.getElementById('proj-save-btn'); if(psb) psb.textContent=t('projCurrent');
+  renderProjectsPanel();
+};
+
+// Sayfa yüklenince proje listesini render et
+setTimeout(renderProjectsPanel, 1200);
+
+
+// ── Stakeout modu ─────────────────────────────────────────
+let stakeoutActive=false, stakeoutTarget=null, stakeoutInitDist=null;
+
+function openStakeoutModal(){
+  document.getElementById('stakeout-modal').style.display='flex';
+  document.getElementById('stk-display').style.display='none';
+  document.getElementById('stk-stop-btn').style.display='none';
+  document.getElementById('stk-start-btn').style.display='block';
+  document.getElementById('stk-title').textContent=t('stakeout');
+  document.getElementById('stk-hint').textContent=t('stakeoutHint');
+  document.getElementById('stk-dist-label').textContent=t('stakeoutDist');
+  document.getElementById('stk-start-btn').textContent=t('stakeoutStart');
+  document.getElementById('stk-stop-btn').textContent=t('stakeoutStop');
+}
+
+function closeStakeout(){
+  document.getElementById('stakeout-modal').style.display='none';
+  stopStakeout();
+}
+
+function startStakeout(){
+  if(!gpsActive){showToast(t('stakeoutNoGPS'));startGPS();return;}
+  const val=document.getElementById('stk-input').value.trim();
+  const parts=val.split(/[,\s]+/).map(Number);
+  if(parts.length<2||isNaN(parts[0])||isNaN(parts[1])){showToast(t('invalidCoord'));return;}
+  let lat,lng;
+  const a=parts[0],b=parts[1];
+  if(a>90||b>180){
+    const proj=PROJECTIONS['turef_tm30'];
+    const res=tmToLatLng(b,a,proj);lat=res[0];lng=res[1];
+  } else {lat=a;lng=b;}
+  stakeoutTarget=L.latLng(lat,lng);
+  stakeoutInitDist=null;
+  stakeoutActive=true;
+  // Hedef marker
+  if(window._stkMarker)map.removeLayer(window._stkMarker);
+  window._stkMarker=L.circleMarker(stakeoutTarget,{radius:10,color:'#ff9f43',fillColor:'#ff9f43',fillOpacity:0.4,weight:2.5}).addTo(map).bindPopup(t('stakeoutTarget'));
+  map.setView(stakeoutTarget,17);
+  document.getElementById('stk-start-btn').style.display='none';
+  document.getElementById('stk-stop-btn').style.display='block';
+  document.getElementById('stk-display').style.display='block';
+  updateStakeout();
+}
+
+function stopStakeout(){
+  stakeoutActive=false;stakeoutTarget=null;stakeoutInitDist=null;
+  if(window._stkMarker){map.removeLayer(window._stkMarker);window._stkMarker=null;}
+  document.getElementById('stk-display').style.display='none';
+  document.getElementById('stk-stop-btn').style.display='none';
+  document.getElementById('stk-start-btn').style.display='block';
+}
+
+function updateStakeout(){
+  if(!stakeoutActive||!stakeoutTarget||!gpsMarker)return;
+  const myPos=gpsMarker.getLatLng();
+  const d=myPos.distanceTo(stakeoutTarget);
+  if(!stakeoutInitDist)stakeoutInitDist=d;
+  const ds=d>=1000?(d/1000).toFixed(3)+' km':d.toFixed(1)+' m';
+  document.getElementById('stk-dist').textContent=ds;
+  // Yön hesapla
+  const dLat=stakeoutTarget.lat-myPos.lat;
+  const dLng=stakeoutTarget.lng-myPos.lng;
+  const angle=Math.atan2(dLng,dLat)*180/Math.PI;
+  document.getElementById('stk-arrow').style.transform=`rotate(${angle}deg)`;
+  document.getElementById('stk-dir').textContent=Math.round(angle+360)%360+'°';
+  // Progress bar
+  const pct=Math.max(0,Math.min(100,100*(1-d/stakeoutInitDist)));
+  document.getElementById('stk-bar').style.width=pct+'%';
+  if(d<3){
+    document.getElementById('stk-dist').textContent='🎯 '+t('stakeoutReached');
+    if(navigator.vibrate)navigator.vibrate([200,100,200]);
+  }
+  if(stakeoutActive)setTimeout(updateStakeout,1000);
+}
+
+// GPS güncellenince stakeout güncelle
+const _origStartGPS=startGPS;
+
+// ── Ölçüm geçmişi ─────────────────────────────────────────
+let measHistory=JSON.parse(localStorage.getItem('measHistory')||'[]');
+
+function saveMeasurement(type,value,unit,pts){
+  const entry={id:Date.now(),type,value,unit,pts:pts?pts.map(p=>({lat:p.lat,lng:p.lng})):[],date:new Date().toLocaleString('tr')};
+  measHistory.unshift(entry);
+  if(measHistory.length>50)measHistory.pop();
+  localStorage.setItem('measHistory',JSON.stringify(measHistory));
+  renderMeasHistory();
+  showToast(t('measSaved'));
+}
+
+function renderMeasHistory(){
+  const list=document.getElementById('meas-hist-list');
+  if(!measHistory.length){
+    list.innerHTML=`<div style="color:var(--text2);font-size:12px;text-align:center;padding:12px">${t('measHistEmpty')}</div>`;
+    return;
+  }
+  list.innerHTML=measHistory.map(e=>`
+    <div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;font-weight:600;color:${e.type==='line'?'var(--accent)':'var(--accent2)'}">
+          ${e.type==='line'?'📏':'📐'} ${e.value} ${e.unit}
+        </span>
+        <span style="font-size:10px;color:var(--text2)">${e.date}</span>
+      </div>
+    </div>`).join('');
+}
+
+function clearMeasHistory(){
+  measHistory=[];localStorage.removeItem('measHistory');renderMeasHistory();
+}
+
+function exportMeasKML(){
+  if(!measHistory.length){showToast(t('measHistEmpty'));return;}
+  let kml=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+`;
+  measHistory.forEach((e,i)=>{
+    if(e.pts&&e.pts.length>=2){
+      const coords=e.pts.map(p=>p.lng+','+p.lat+',0').join(' ');
+      kml+=`<Placemark><name>${e.type==='line'?'Mesafe':'Alan'} ${e.value} ${e.unit}</name>
+`;
+      if(e.type==='line'){kml+=`<LineString><coordinates>${coords}</coordinates></LineString>`;}
+      else{kml+=`<Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;}
+      kml+=`</Placemark>
+`;
+    }
+  });
+  kml+=`</Document>
+</kml>`;
+  const blob=new Blob([kml],{type:'application/vnd.google-earth.kml+xml'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='olcumler.kml';a.click();
+  showToast(t('exportKML'));
+}
+
+// ── Snap hassasiyet + gece modu ───────────────────────────
+let snapRadius=25;
+let autoNight=localStorage.getItem('autoNight')==='true';
+
+function toggleAutoNight(){
+  autoNight=!autoNight;
+  localStorage.setItem('autoNight',autoNight);
+  document.getElementById('auto-night-toggle').classList.toggle('off',!autoNight);
+  if(autoNight)checkNightMode();
+}
+
+function checkNightMode(){
+  if(!autoNight)return;
+  const h=new Date().getHours();
+  const isNight=h>=20||h<7;
+  if(isNight&&currentBase!=='dark')setMapType('dark');
+  else if(!isNight&&currentBase==='dark')setMapType('osm');
+}
+
+// findSnapVertex'i snapRadius kullanacak şekilde güncelle
+const _origFindSnap=findSnapVertex;
+window.findSnapVertex=function(latlng){
+  if(!allVertices.length)return null;
+  const zoom=map.getZoom();
+  const snapMeters=snapRadius*40075016*Math.cos(latlng.lat*Math.PI/180)/(256*Math.pow(2,zoom));
+  let closest=null,minDist=snapMeters;
+  for(let v of allVertices){const d=latlng.distanceTo(v);if(d<minDist){minDist=d;closest=v;}}
+  return closest;
+};
+
+// ── finishArea'ya ölçüm kaydet ────────────────────────────
+const _origFinishArea=finishArea;
+window.finishArea=function(){
+  if(distPoints.length<3){showToast(t('tapThree'));return;}
+  if(distLine){map.removeLayer(distLine);distLine=null;}
+  if(distPolygon)map.removeLayer(distPolygon);
+  const pts=[...distPoints];
+  distPolygon=L.polygon(pts,{color:'#ff9f43',weight:2,fillOpacity:0.12}).addTo(map);
+  const areaM2=calcArea(pts);
+  const donum=areaM2/1000;
+  const val=areaM2>=10000?(areaM2/10000).toFixed(4)+' ha':areaM2.toFixed(1)+' m²';
+  document.getElementById('dist-value').textContent=val;
+  document.getElementById('dist-hint').textContent=donum.toFixed(2)+' '+t('dontum');
+  document.getElementById('dist-finish').style.display='none';
+  saveMeasurement('area',areaM2>=10000?(areaM2/10000).toFixed(4):areaM2.toFixed(1),areaM2>=10000?'ha':'m²',pts);
+  distPoints=[];
+};
+
+// ── applyLang genişlet ────────────────────────────────────
+const _origApplyLang=applyLang;
+window.applyLang=function(){
+  _origApplyLang();
+  const sl=document.getElementById('btn-stakeout-lbl');if(sl)sl.textContent=t('stakeout');
+  const mhl=document.getElementById('btn-meas-hist-lbl');if(mhl)mhl.textContent=t('measHistory');
+  const mht=document.getElementById('meas-hist-title');if(mht)mht.textContent=t('measHistory');
+  const mhc=document.getElementById('meas-hist-clear');if(mhc)mhc.textContent=t('measHistClear');
+  const df=document.getElementById('dist-finish');if(df)df.textContent='✓ '+t('finish');
+  const ssl=document.getElementById('snap-sens-label');if(ssl)ssl.textContent=t('snapSens')+': '+(document.getElementById('snap-val')?document.getElementById('snap-val').textContent:'25')+'px';
+  const anl=document.getElementById('auto-night-label');if(anl)anl.textContent=t('autoNight');
+  const stl=document.getElementById('settings-title');if(stl)stl.textContent='⚙️ '+t('snapSens').split(' ')[0];
+  renderMeasHistory();
+};
+
+// ── initMap'e ekstralar ───────────────────────────────────
+// Sayfa yüklenince gece modu kontrolü
+setTimeout(()=>{
+  checkNightMode();
+  setInterval(checkNightMode,60000);
+  document.getElementById('auto-night-toggle').classList.toggle('off',!autoNight);
+  renderMeasHistory();
+  updateStakeout();
+},1000);
+
+// GPS güncellenince stakeout güncelle
+document.addEventListener('gps-update',updateStakeout);
+
 
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 </script>
