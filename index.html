@@ -947,7 +947,7 @@ function handleFile(file){
   else if(name.endsWith('.dwg'))showToast('DWG: Civil 3D\'den DXF veya KMZ export edin');
   else showToast('Desteklenmeyen format');
 }
-function autoLoadFile(filename){
+function autoLoadFile(filename, projOverride){
   const name=filename.toLowerCase();
   fetch(filename).then(r=>{
     if(!r.ok)throw new Error('Dosya bulunamadı: '+filename);
@@ -958,7 +958,13 @@ function autoLoadFile(filename){
       try{text=new TextDecoder('utf-8',{fatal:true}).decode(buf);}
       catch{try{text=new TextDecoder('windows-1252').decode(buf);}catch{text=new TextDecoder('iso-8859-1').decode(buf);}}
       text=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
-      openDxfRefModal(text,filename);
+      // projOverride varsa doğrudan yükle — modal açma
+      if(projOverride){
+        if(projOverride&&PROJECTIONS[projOverride])selectedProj=projOverride;
+        parseDXFWithProj(text,filename,{});
+      } else {
+        openDxfRefModal(text,filename);
+      }
     });
     throw new Error('Desteklenmeyen format');
   }).catch(e=>console.warn('autoLoadFile:',e));
@@ -1748,10 +1754,7 @@ function switchToFixedProject(id) {
   const files = proj.files || (proj.file ? [proj.file] : []);
   if(Array.isArray(files) && files.length && typeof files[0]==='object'){
     // Yeni format: [{path, proj}]
-    files.forEach(f=>{
-      if(f.proj) selectedProj=f.proj;
-      autoLoadFile(f.path);
-    });
+    files.forEach(f=>autoLoadFile(f.path, f.proj||null));
   } else {
     // Eski format: string veya string[]
     const fileList=Array.isArray(files)?files:[files];
